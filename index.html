@@ -1605,7 +1605,7 @@ function viewDati(){
    <div class="actions"><button class="btn" id="bk">Crea backup</button><button class="btn" id="rs">Ripristina</button></div></div>
   <div class="card"><h3>Archivio</h3><p class="num">${state.pazienti.length} pazienti · ${FOODS.length} alimenti (${DB.foods.filter(f=>f.o==="s").length} CREA/INRAN, ${DB.foods.filter(f=>f.o==="p").length} personali, ${FOODS.filter(f=>f.o==="r").length} ricette${nU?`, ${nU} aggiunti su questo dispositivo`:""}) · ${state.kv.presets.length} preset · ${state.kv.modelli.length} giornate tipo · ${state.kv.pasti.length} pasti salvati</p>
    <p style="margin:0">I dati restano solo su questo dispositivo${state.persist?"":". <b class=\"over\">Archivio non disponibile in questa sessione.</b>"}</p></div>
-  <div class="note">NutriDesk 0.9.2 · valori nutrizionali per 100g di parte edibile</div>`);
+  <div class="note">NutriDesk 0.9.3 · valori nutrizionali per 100g di parte edibile</div>`);
   $("#view").querySelectorAll("[data-tm]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),mode:b.dataset.tm});rerender()});
   $("#view").querySelectorAll("[data-tc]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),color:b.dataset.tc});rerender()});
   const sb=$("#syset");if(sb)sb.onclick=syncSetup;const sn=$("#synow");if(sn)sn.onclick=()=>{toast("Sincronizzazione…");syncNow().then(()=>{rerender();toast(SY.status==="err"?"Sincronizzazione non riuscita: "+SY.err:"Sincronizzato")})};const so=$("#syoff");if(so)so.onclick=syncDisconnect;
@@ -1742,11 +1742,17 @@ function exportPpd(p){
     const pP=Math.round(t.pP),pL=Math.round(r.pL),pG=100-pP-pL;const sp=PPD.MEALS.map(n=>{const x=r.split.find(s=>s[0]===n);return x?Math.round(x[1]):0});
     r.split.forEach(s=>{if(!PPD.MEALS.includes(s[0]))warn.push(`pasto "${s[0]}" della prescrizione non previsto da Progetto Dieta`)});
     return PPD.makePrescr(r.dal||first,Math.round(r.kcal),pG,pP,pL,sp,r.fabb||Math.round(r.kcal))});
+  /* Progetto Dieta all'apertura cerca la prescrizione in vigore: la prima non deve essere nel futuro */
+  const tdy=today();if(prs.length&&dkey(prs[0].data)>dkey(tdy)&&!(p.prescrizioni.find(r=>r.dal)))prs[0].data=tdy;
   /* visite */
   const a=ageN(p.data_nascita);
   const vis=(p.visite||[]).filter(v=>v.peso).sort((x,y)=>dkey(x.data)-dkey(y.data)).map(v=>{const h=v.altezza||p.altezza;
     const mb=v.bia&&v.bia.mb?Math.round(v.bia.mb):(h&&a!=null?Math.round(10*v.peso+6.25*h-5*a+(p.sesso==="M"?5:-161)):0);
     return{data:v.data,peso:v.peso,x:v.pdx!=null?v.pdx:((v.bia&&v.bia.mg)||0),mb,fabb:v.pdfabb||Math.round(mb*1.6)}});
+  /* Progetto Dieta richiede almeno una visita con il peso: senza, il file non si apre */
+  let wFake=null;if(!vis.length){const w=pesoRef(p)||70;if(!pesoRef(p))wFake=w;const k=Math.round((p.prescrizioni[0]||{}).kcal||2000);
+    vis.push({data:prs.length?prs[0].data:first,peso:w,x:0,mb:Math.round(k/1.6),fabb:k});
+    warn.push(wFake?`il paziente non ha visite con il peso: inserita una visita con peso fittizio di ${w}kg (correggilo in Progetto Dieta o aggiungi una visita in NutriDesk)`:"inserita una visita con il peso di riferimento, richiesta da Progetto Dieta")}
   /* pasti: solo quelli con alimenti, nell'ordine di Progetto Dieta */
   const pasti=[];let subs=0,missing=0;
   for(const d of days){const ms=d.pasti.filter(m=>m.voci.length).slice().sort((x,y)=>{const ix=PPD.MEALS.indexOf(x.nome),iy=PPD.MEALS.indexOf(y.nome);return(ix<0?99:ix)-(iy<0?99:iy)});
@@ -1759,8 +1765,9 @@ function exportPpd(p){
       if(righe.length)pasti.push({data:d.data,nome:m.nome,righe})}}
   /* calendario dal primo all'ultimo giorno */
   const date=[];if(days.length){const s=days[0].data.split("/"),e=days[days.length-1].data.split("/");let t=new Date(+s[2],+s[1]-1,+s[0]);const end=new Date(+e[2],+e[1]-1,+e[0]);while(t<=end&&date.length<5000){date.push(dstr(t));t.setDate(t.getDate()+1)}}
+  let nascita=p.data_nascita;if(!DRE.test(nascita||"")){nascita="01/01/2000";warn.push("data di nascita mancante: inserita 01/01/2000 (correggila)")}
   let header=p.pd&&p.pd.header;if(!header){const hb=PPD.unhex(PPD.HEADER_TPL);if(p.altezza){const h=Math.round(p.altezza);hb[7]=h&255;hb[8]=h>>8&255;hb[9]=0;hb[10]=0}header=PPD.hex(hb)}
-  const bytes=PPD.write({versione:"2.0",nome:p.nome,nascita:p.data_nascita||"",header,prescr:prs,visite:vis,pasti,tail:p.pd&&p.pd.tail,date,finale:p.pd?p.pd.finale:undefined});
+  const bytes=PPD.write({versione:"2.0",nome:p.nome,nascita,header,prescr:prs,visite:vis,pasti,tail:p.pd&&p.pd.tail,date,finale:p.pd?p.pd.finale:undefined});
   return{bytes,warn:[...new Set(warn)],subs,missing,nPasti:pasti.length};
 }
 function exportPpdUI(p){
