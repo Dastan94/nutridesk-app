@@ -1605,7 +1605,7 @@ function viewDati(){
    <div class="actions"><button class="btn" id="bk">Crea backup</button><button class="btn" id="rs">Ripristina</button></div></div>
   <div class="card"><h3>Archivio</h3><p class="num">${state.pazienti.length} pazienti · ${FOODS.length} alimenti (${DB.foods.filter(f=>f.o==="s").length} CREA/INRAN, ${DB.foods.filter(f=>f.o==="p").length} personali, ${FOODS.filter(f=>f.o==="r").length} ricette${nU?`, ${nU} aggiunti su questo dispositivo`:""}) · ${state.kv.presets.length} preset · ${state.kv.modelli.length} giornate tipo · ${state.kv.pasti.length} pasti salvati</p>
    <p style="margin:0">I dati restano solo su questo dispositivo${state.persist?"":". <b class=\"over\">Archivio non disponibile in questa sessione.</b>"}</p></div>
-  <div class="note">NutriDesk 0.9.4 · valori nutrizionali per 100g di parte edibile</div>`);
+  <div class="note">NutriDesk 0.9.5 · valori nutrizionali per 100g di parte edibile</div>`);
   $("#view").querySelectorAll("[data-tm]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),mode:b.dataset.tm});rerender()});
   $("#view").querySelectorAll("[data-tc]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),color:b.dataset.tc});rerender()});
   const sb=$("#syset");if(sb)sb.onclick=syncSetup;const sn=$("#synow");if(sn)sn.onclick=()=>{toast("Sincronizzazione…");syncNow().then(()=>{rerender();toast(SY.status==="err"?"Sincronizzazione non riuscita: "+SY.err:"Sincronizzato")})};const so=$("#syoff");if(so)so.onclick=syncDisconnect;
@@ -1771,7 +1771,8 @@ function exportPpd(p){
   const date=[];if(days.length){const s=days[0].data.split("/"),e=days[days.length-1].data.split("/");let t=new Date(+s[2],+s[1]-1,+s[0]);const end=new Date(+e[2],+e[1]-1,+e[0]);while(t<=end&&date.length<5000){date.push(dstr(t));t.setDate(t.getDate()+1)}}
   let nascita=p.data_nascita;if(!DRE.test(nascita||"")){nascita="01/01/2000";warn.push("data di nascita mancante: inserita 01/01/2000 (correggila)")}
   let header=p.pd&&p.pd.header;if(!header){const hb=PPD.unhex(PPD.HEADER_TPL);if(p.altezza){const h=Math.round(p.altezza);hb[7]=h&255;hb[8]=h>>8&255;hb[9]=0;hb[10]=0}header=PPD.hex(hb)}
-  const bytes=PPD.write({versione:"2.0",nome:p.nome,nascita,header,prescr:prs,visite:vis,pasti,tail:p.pd&&p.pd.tail,date,finale:p.pd?p.pd.finale:undefined});
+  const bytes=PPD.write({versione:"2.0",nome:p.nome,nascita,header,prescr:prs,visite:vis,pasti,tail:p.pd&&p.pd.tail,date,finale:p.pd&&p.pd.finale!=null&&p.pd.finale<prs.length+date.length+pasti.length?p.pd.finale:prs.length+date.length+pasti.length-1});
+  /* "finale": ultimo nodo dell'albero di Progetto Dieta (prescrizioni + date + pasti); nel file originale vale proprio così (2+41+151-1=193) */
   return{bytes,warn:[...new Set(warn)],subs,missing,nPasti:pasti.length};
 }
 function exportPpdUI(p){
