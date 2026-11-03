@@ -262,6 +262,21 @@ svg.chart text{fill:var(--ink-3);font-size:11px;font-family:var(--font)}
 .pdoc .shop-r h4{color:var(--pg);font-size:10pt}
 .pdoc .shop-i{font-size:10pt;border-color:#ddd;padding:3px 0;break-inside:avoid}
 .pdoc .shop-r{break-inside:avoid-page}
+.larnchip{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;margin-top:12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);text-align:left}
+.larnchip span{font-size:13px;color:var(--ink-3)}
+.ltab{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface)}
+.lrow{display:grid;grid-template-columns:minmax(0,1fr) 84px 120px;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line)}
+.lrow:last-child{border-bottom:0}
+.ln small{display:block;color:var(--ink-3);font-size:11.5px;line-height:1.3}
+.lv{text-align:right;font-weight:650}
+.lm{display:flex;align-items:center;gap:6px;justify-content:flex-end}
+.lbar{flex:1;height:6px;border-radius:3px;background:var(--sunken);overflow:hidden}
+.lbar i{display:block;height:100%;background:var(--ok)}
+.lbar i.near{background:var(--l)}.lbar i.low{background:var(--warn)}.lbar i.nd{background:var(--ink-3)}
+.lpc.nd{color:var(--ink-3);font-weight:500}
+.lpc{font-size:12px;font-weight:650;min-width:38px;text-align:right}
+.lpc.ok{color:var(--ok)}.lpc.near{color:var(--l)}.lpc.low,.lpc.high{color:var(--warn)}
+@media (max-width:560px){.lrow{grid-template-columns:minmax(0,1fr) auto}.lm{grid-column:1/-1}.lm:empty{display:none}}
 /* stampa della dieta */
 .pd-opts{display:flex;flex-wrap:wrap;gap:6px 16px;margin:10px 0 12px}
 .pd-o{display:flex;align-items:center;gap:6px;font-size:14px}
@@ -717,6 +732,7 @@ function dietaHTML(p){
     <div class="macros">${mac("PROTEINE","Prot.","--p",4,tg.pP)}${mac("LIPIDI","Lipidi","--l",9,tg.pL)}${mac("GLUCIDI","Gluc.","--g",3.75,tg.pG)}${mac("FIBRA","Fibra","--f",0)}</div>
     <div class="note num">${w?`Proteine ${fmt(T.PROTEINE/w,2)}g/kg · `:""}zuccheri solubili ${fmt(T.GLUC_SOL)}g · saturi ${fmt(T.AC_SATURI_T)}g (${pctE(T.AC_SATURI_T,9)}% kcal) · sodio ${fmt(T.SODIO)}mg · colesterolo ${fmt(T.COLESTER)}mg</div>
     <details class="more"><summary>Tutti i nutrienti del giorno</summary>${nutrTable(T)}</details>
+    ${larnChip(p,d)}
   </section></aside>
   <div class="meals">${d.pasti.map((m,mi)=>{const t=totals(m.voci),mt=mealTargets(p,r,m.nome);const mp=mt?t.KCAL/mt.KCAL*100:0;return `
     <section class="meal">
@@ -739,6 +755,7 @@ function bindDieta(p){
   $("#dmenu").onclick=()=>dayMenu(p,d);$("#addmeal").onclick=()=>addMeal(p,d);
   v.querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>pickFood(f=>askGrams(f,null,g=>{const m=d.pasti[+b.dataset.add];m.voci.push(withAlt({n:f.n,g},m.nome));savePaz(p);rerender();warnAdd(f,p)})));
   v.querySelectorAll("[data-mm]").forEach(b=>b.onclick=()=>mealMenu(p,d,d.pasti[+b.dataset.mm]));
+  v.querySelectorAll("[data-larn]").forEach(b=>b.onclick=()=>{larnScope="giorno";larnSheet(p)});
   v.querySelectorAll("[data-cols]").forEach(b=>b.onclick=editCols);
   v.querySelectorAll("[data-tg]").forEach(b=>b.onclick=()=>{const o=openSet(d),i=+b.dataset.tg;o.has(i)?o.delete(i):o.add(i);rerender()});
   v.querySelectorAll(".item,tr[data-m]").forEach(b=>b.onclick=()=>{const m=d.pasti[+b.dataset.m],x=m.voci[+b.dataset.v],f=food(x.n);
@@ -784,6 +801,7 @@ function dayMenu(p,d){
     <button data-a="pr">Prescrizione del giorno<small>${esc(r.nome)} · ${fmt(r.kcal)}kcal${d.pid?" · assegnata a mano":" · automatica per data"}</small></button>
     <button data-a="cols">Colonne del dettaglio pasti<small>${esc(detCols().map(c=>c==="G"?"Grammi":lab(c)[0]).join(", "))}</small></button>
     <button data-a="prt">Stampa<small>Questo giorno o più giorni, anche in PDF</small></button>
+    <button data-a="larn">Confronto LARN<small>Micronutrienti e limiti del giorno o della settimana</small></button>
     <button data-a="spesa">Lista della spesa<small>Della settimana di questo giorno</small></button>
     <button data-a="alt">Applica alternative standard<small>Aggiunge le alternative dei gruppi agli alimenti di questo giorno</small></button>
     <button data-a="date">Cambia data</button>
@@ -794,7 +812,7 @@ function dayMenu(p,d){
    s.onclick=e=>{const a=e.target.closest("[data-a]")?.dataset.a;if(!a)return;closeSheet();
      if(a==="pr")sheet(`<h2>Prescrizione del ${esc(d.data)}</h2><div class="field"><select id="dpr" aria-label="Prescrizione">${prOpts(p,d.pid||"")}</select><span class="hint">"Automatica" usa la prescrizione più recente iniziata entro questa data.</span></div><div class="actions"><button class="btn" data-close>Annulla</button><button class="btn primary" id="dprok">Applica</button></div>`,s2=>{
        s2.querySelector("#dprok").onclick=()=>{const v=s2.querySelector("#dpr").value;if(v)d.pid=v;else delete d.pid;R(p,d).split.forEach(([n])=>{if(!d.pasti.some(x=>x.nome===n))d.pasti.push({nome:n,voci:[]})});savePaz(p);closeSheet();rerender()}});
-     if(a==="cols")editCols();if(a==="prt")printSheet(p);if(a==="spesa")shoppingSheet(p);if(a==="alt")applyAltDays(p,[d]);
+     if(a==="cols")editCols();if(a==="prt")printSheet(p);if(a==="spesa")shoppingSheet(p);if(a==="larn"){larnScope="giorno";larnSheet(p)}if(a==="alt")applyAltDays(p,[d]);
      if(a==="date")askText("Data del giorno",d.data,"gg/mm/aaaa",nd=>{if(!DRE.test(nd))return toast("Scrivi la data come gg/mm/aaaa");d.data=nd;p.giorni.sort((x,y)=>dkey(x.data)-dkey(y.data));state.day=p.giorni.indexOf(d);savePaz(p);render()});
      if(a==="dup")askText("Data del nuovo giorno",nextDate(p),"gg/mm/aaaa",nd=>{if(!DRE.test(nd))return toast("Scrivi la data come gg/mm/aaaa");insertDay(p,{...clean(d),data:nd});toast("Giorno duplicato")});
      if(a==="mod")askText("Nome della giornata tipo",`${fmt(r.kcal)}kcal · ${d.pasti.length} pasti`,"",async n=>{if(!n)return;state.kv.modelli.push({id:uid(),nome:n,kcal:Math.round(totals(dayVoci(d)).KCAL),pasti:clean(d.pasti)});await saveKV("modelli");toast("Giornata tipo salvata")});
@@ -1234,10 +1252,11 @@ function bindWeek(p){
 function weekMenu(p,W7){const idx=W7.filter(x=>x.i>=0).map(x=>x.i);
   sheet(`<h2>Settimana ${esc(W7[0].data.slice(0,5))} – ${esc(W7[6].data)}</h2><div class="menu">
     <button data-a="rep" ${idx.length?"":"disabled"}>Ripeti la settimana<small>Copia questi giorni nelle settimane successive</small></button>
+    <button data-a="larn" ${idx.length?"":"disabled"}>Confronto LARN<small>Media della settimana</small></button>
     <button data-a="spesa" ${idx.length?"":"disabled"}>Lista della spesa<small>Quantità totali della settimana, divise per reparto</small></button>
     <button data-a="prt" ${idx.length?"":"disabled"}>Stampa la settimana</button></div>`,s=>{
    s.onclick=e=>{const a=e.target.closest("[data-a]")?.dataset.a;if(!a)return;closeSheet();
-     if(a==="rep")repeatWeek(p,W7);if(a==="spesa")shoppingSheet(p,idx);if(a==="prt")printSheet(p,idx)}});
+     if(a==="rep")repeatWeek(p,W7);if(a==="larn"){larnScope="sett";larnSheet(p)}if(a==="spesa")shoppingSheet(p,idx);if(a==="prt")printSheet(p,idx)}});
 }
 function repeatWeek(p,W7){
   const src=W7.filter(x=>x.i>=0).map(x=>p.giorni[x.i]);
@@ -1279,6 +1298,97 @@ function shoppingSheet(p,idx){
      try{if(C&&C.isNativePlatform&&C.isNativePlatform()&&C.Plugins.Share){await C.Plugins.Share.share({title:"Lista della spesa",text:t,dialogTitle:"Condividi la lista"});return}
        if(navigator.share){await navigator.share({title:"Lista della spesa",text:t});return}}catch(e){if(e&&/cancel|abort/i.test(e.message||e.name||""))return}
      try{await navigator.clipboard.writeText(t);toast("Lista copiata: incollala in un messaggio o in una mail")}catch(e){toast("Impossibile copiare la lista")}}},true);
+}
+
+/* ═════════ confronto con i LARN ═════════ */
+/* Valori di riferimento: LARN V revisione (SINU 2024), tabelle riassuntive Smartfood IEO 2025.
+   PRI = assunzione raccomandata, AI = assunzione adeguata, SDT = obiettivo per la prevenzione, RI = intervallo di riferimento. */
+const LARN_SRC="LARN V revisione (SINU 2024)";
+/* copertura dei dati: quota del peso degli alimenti che ha un valore per il nutriente.
+   Nelle tabelle molti micronutrienti mancano (0 = non misurato), soprattutto per prodotti commerciali e alimenti personali */
+const LARN_MINCOV=.8;
+function larnCov(days){const cov={},tot={g:0};COLS.forEach(c=>cov[c]=0);
+  for(const d of days)for(const x of dayVoci(d)){const f=food(x.n);if(!f||!(x.g>0))continue;tot.g+=x.g;for(let i=0;i<COLS.length;i++)if(f.v[i])cov[COLS[i]]+=x.g}
+  COLS.forEach(c=>cov[c]=tot.g?cov[c]/tot.g:1);return cov}
+function larnGroup(p,cond){const a=ageN(p.data_nascita),m=p.sesso==="M";if(a==null)return null;
+  if(!m&&cond==="grav")return"grav";if(!m&&cond==="allatt")return"allatt";
+  if(a<11)return{err:"I LARN per bambini sotto gli 11 anni non sono inclusi"};
+  if(a<15)return m?"11M":"11F";if(a<18)return m?"15M":"15F";
+  return m?(a>=65?"AM65":"AM"):(cond==="post"||a>=65?(a>=65?"AF65":"AFpost"):"AF")}
+/* per gruppo: [valore, tipo]; null = non definito */
+const LARN_T={
+ //            11M        11F        15M        15F        AM         AM65       AF         AFpost     AF65       grav       allatt
+ CALCIO:   ["PRI",1150,1150,1150,1150,950,1100,950,1100,1100,1100,1100],
+ FOSFORO:  ["AI",660,660,660,660,550,630,550,630,630,630,630],
+ MAGNESIO: ["AI",290,290,380,310,350,350,350,350,350,350,350],
+ POTASSIO: ["SDT",4500,4500,4500,4500,4500,3900,4500,4500,3900,4500,4500],
+ CLORO:    ["AI",2300,2300,2300,2300,2300,1900,2300,2300,1900,2300,2300],
+ FERRO:    ["PRI",10,18,13,18,10,10,18,10,10,27,11],
+ ZINCO:    ["PRI",12,9,12,9,12,12,9,9,9,11,12],
+ RAME:     ["AI",1,1,1.3,1.2,1.4,1.4,1.3,1.3,1.3,1.5,1.5],
+ SELENIO:  ["AI",50,50,55,55,55,55,55,55,55,60,60],
+ IODIO:    ["AI",130,130,130,130,150,150,150,150,150,200,200],
+ MANGANESE:["AI",1.9,1.9,2.5,2.3,2.5,2.5,2.3,2.3,2.3,2.3,2.3],
+ RIBOFLAV: ["PRI",1.2,1.2,1.6,1.6,1.6,1.6,1.6,1.6,1.6,1.8,1.8],
+ NIACINA:  ["PRI",16,16,18,18,18,18,18,18,18,22,22],
+ AC_PANTO: ["AI",4,4,5,5,5,5,5,5,5,6,7],
+ VIT_B6:   ["PRI",1.3,1.3,1.6,1.4,1.6,1.7,1.4,1.4,1.6,1.9,2],
+ BIOTINA:  ["AI",35,35,35,35,40,40,40,40,40,40,45],
+ FOLATI:   ["PRI",270,270,330,330,330,330,330,330,330,600,500],
+ VIT_B12:  ["AI",3.4,3.3,4,4,4,4,4,4,4,4.5,5],
+ VIT_C:    ["PRI",90,80,105,85,105,105,85,85,85,100,130],
+ RETINOLO_EQ:["PRI",600,600,750,650,750,750,650,650,650,700,1300],
+ VIT_D:    ["PRI",15,15,15,15,15,15,15,15,15,15,15],
+ VIT_E_TOC_EQ:["AI",11,11,13,12,13,13,12,12,12,12,15]};
+const LARN_G=["11M","11F","15M","15F","AM","AM65","AF","AFpost","AF65","grav","allatt"];
+const LARN_PROT={"11M":.97,"11F":.95,"15M":.93,"15F":.9,AM:.9,AM65:1.1,AF:.9,AFpost:.9,AF65:1.1,grav:.9,allatt:.9};
+const LARN_GLABEL={"11M":"maschi 11-14 anni","11F":"femmine 11-14 anni","15M":"maschi 15-17 anni","15F":"femmine 15-17 anni",AM:"uomini adulti",AM65:"uomini da 65 anni",AF:"donne adulte",AFpost:"donne in post-menopausa",AF65:"donne da 65 anni",grav:"gravidanza",allatt:"allattamento"};
+/* T = totali medi giornalieri; restituisce righe [sezione, colonna, etichetta, assunzione, riferimento, tipo, verso, unità, nota] */
+function larnRows(p,T,g,cov){cov=cov||{};const w=pesoRef(p),k=T.KCAL||0,gi=LARN_G.indexOf(g),R=[];const en=(x,f)=>k>0?x*f/k*100:0;
+  if(w)R.push(["Energia e macronutrienti","PROTEINE","Proteine",T.PROTEINE,LARN_PROT[g]*w,"PRI","min","g",`${fmt(LARN_PROT[g],2)}g/kg × ${fmt(w,1)}kg · assunzione ${fmt(T.PROTEINE/w,2)}g/kg`]);
+  R.push(["Energia e macronutrienti","LIPIDI","Lipidi (% kcal)",en(T.LIPIDI,9),[20,35],"RI","range","%",""]);
+  R.push(["Energia e macronutrienti","GLUCIDI","Glucidi (% kcal)",en(T.GLUCIDI,3.75),[45,60],"RI","range","%",""]);
+  R.push(["Energia e macronutrienti","GLUC_SOL","Zuccheri (% kcal)",en(T.GLUC_SOL,3.75),15,"SDT","max","%","zuccheri totali"]);
+  R.push(["Energia e macronutrienti","AC_SATURI_T","Acidi grassi saturi (% kcal)",en(T.AC_SATURI_T,9),10,"SDT","max","%",""]);
+  R.push(["Energia e macronutrienti","FIBRA","Fibra",T.FIBRA,Math.max(g.startsWith("11")?0:25,12.6*k/1000),"AI","min","g","12,6g ogni 1000kcal, almeno 25g negli adulti"]);
+  R.push(["Minerali","SODIO","Sodio",T.SODIO,2000,"SDT","max","mg","AI 1500mg; obiettivo: non superare 2000mg (5g di sale)"]);
+  for(const c of ["POTASSIO","CALCIO","FOSFORO","MAGNESIO","FERRO","ZINCO","RAME","SELENIO","IODIO","MANGANESE","CLORO"]){const t=LARN_T[c];if(CI[c]==null)continue;R.push(["Minerali",c,lab(c)[0],T[c],t[gi+1],t[0],"min",lab(c)[1],""])}
+  if(CI.TIAMINA!=null)R.push(["Vitamine","TIAMINA",lab("TIAMINA")[0],T.TIAMINA,.4*k/1000,"PRI","min","mg","0,4mg ogni 1000kcal"]);
+  for(const c of ["RIBOFLAV","NIACINA","AC_PANTO","VIT_B6","BIOTINA","FOLATI","VIT_B12","VIT_C","RETINOLO_EQ","VIT_D","VIT_E_TOC_EQ"]){const t=LARN_T[c];if(CI[c]==null)continue;R.push(["Vitamine",c,lab(c)[0],T[c],t[gi+1],t[0],"min",lab(c)[1],""])}
+  return R.map(r=>{const[,c,,x,ref,,dir]=r;let st;
+    if(dir==="range")st=x<ref[0]?"low":x>ref[1]?"high":"ok";else if(dir==="max")st=x>ref?"high":"ok";else st=x>=ref?"ok":x>=ref*.8?"near":"low";
+    const cv=cov[c]==null?1:cov[c],poor=r[0]!=="Energia e macronutrienti"&&cv<LARN_MINCOV;if(poor&&st!=="ok")st="nd";
+    return{sez:r[0],c,l:r[2],x,ref,tipo:r[5],dir,u:r[7],nota:r[8]+(poor?(r[8]?" · ":"")+`valore presente solo per il ${Math.round(cv*100)}% degli alimenti: totale sottostimato`:""),st}})}
+const larnAvg=days=>{const t={};COLS.forEach(c=>t[c]=0);if(!days.length)return t;for(const d of days){const T=totals(dayVoci(d));COLS.forEach(c=>t[c]+=T[c]/days.length)}return t};
+/* riquadro nel riepilogo del giorno */
+function larnChip(p,d){const g=larnGroup(p,p.larnCond);
+  if(!g)return `<button class="larnchip" data-larn><b>Confronto LARN</b><span>Inserisci data di nascita e sesso del paziente</span></button>`;
+  if(g.err)return "";
+  const R=larnRows(p,totals(dayVoci(d)),g,larnCov([d])),low=R.filter(r=>r.st==="low").length,hi=R.filter(r=>r.st==="high").length;
+  return `<button class="larnchip" data-larn><b>Confronto LARN</b><span>${low||hi?[low?`${low} sotto il riferimento`:"",hi?`${hi} sopra i limiti`:""].filter(Boolean).join(" · "):"Tutti i riferimenti raggiunti"}</span></button>`}
+let larnScope="giorno";
+function larnSheet(p){
+  sheet(`<h2>Confronto con i LARN</h2><div class="scroll" id="lb"></div><div class="actions" style="margin-top:10px"><button class="btn primary" data-close>Chiudi</button></div>`,s=>{
+   const draw=()=>{const box=s.querySelector("#lb");
+     if(!p.data_nascita||ageN(p.data_nascita)==null){box.innerHTML=`<p class="note">Per il confronto servono data di nascita e sesso del paziente.</p><button class="btn" id="lana" style="width:100%">Modifica dati anagrafici</button>`;box.querySelector("#lana").onclick=()=>{closeSheet();editAnagrafica(p)};return}
+     const g=larnGroup(p,p.larnCond);if(g&&g.err){box.innerHTML=`<p class="note">${esc(g.err)}.</p>`;return}
+     const cur=p.giorni[Math.min(state.day,p.giorni.length-1)];
+     const wk=typeof weekDays==="function"?weekDays(p).filter(x=>x.i>=0).map(x=>p.giorni[x.i]):[cur];
+     const days=larnScope==="giorno"?(cur?[cur]:[]):larnScope==="sett"?wk:p.giorni;
+     const R=larnRows(p,larnAvg(days),g,larnCov(days)),fr=v=>Array.isArray(v)?`${fmt(v[0])}–${fmt(v[1])}`:fmtN(v);
+     const bar=r=>{if(r.dir!=="min")return"";const pc=r.ref>0?r.x/r.ref*100:0;return `<div class="lbar"><i class="${r.st}" style="width:${Math.min(100,pc)}%"></i></div><span class="lpc ${r.st}">${Math.round(pc)}%</span>`};
+     const lab2={low:"sotto",near:"vicino",ok:"ok",high:"oltre",nd:"dati incompleti"};
+     box.innerHTML=`<div class="seg" id="lsc">${[["giorno","Giorno"],["sett","Media settimana"],["tutti","Media di tutti"]].map(([k2,l])=>`<button data-sc="${k2}" aria-pressed="${larnScope===k2}">${l}</button>`).join("")}</div>
+      ${p.sesso!=="M"?`<div class="field"><label for="lcond">Condizione</label><select id="lcond">${[["","—"],["post","Post-menopausa"],["grav","Gravidanza"],["allatt","Allattamento"]].map(([v,l])=>`<option value="${v}"${(p.larnCond||"")===v?" selected":""}>${l}</option>`).join("")}</select></div>`:""}
+      <p class="note" style="margin-top:0">Riferimenti per ${esc(LARN_GLABEL[g])} · ${esc(LARN_SRC)} · ${days.length} ${days.length===1?"giorno":"giorni"}${larnScope!=="giorno"?" (media)":""}</p>
+      ${["Energia e macronutrienti","Minerali","Vitamine"].map(sz=>`<div class="label" style="margin-top:10px">${sz}</div><div class="ltab">${R.filter(r=>r.sez===sz).map(r=>`<div class="lrow">
+        <div class="ln"><b>${esc(r.l)}</b><small>${esc(r.tipo)} ${r.dir==="max"?"≤ ":r.dir==="range"?"":"≥ "}${fr(r.ref)}${r.u}${r.nota?" · "+esc(r.nota):""}</small></div>
+        <div class="lv num">${fmtN(r.x)}${r.u}${r.dir!=="min"?`<span class="lpc ${r.st}" style="display:block">${lab2[r.st]}</span>`:""}</div><div class="lm">${bar(r)}</div></div>`).join("")}</div>`).join("")}
+      <p class="note">In grigio i nutrienti per cui le tabelle non hanno il valore di molti alimenti della dieta (spesso prodotti commerciali e alimenti personali): il totale reale è più alto di quello mostrato.</p>
+      <p class="note">PRI e AI sono valori per la popolazione: un'assunzione sotto il riferimento in un singolo giorno non indica di per sé una carenza; conta la media su più giorni.</p>`;
+     box.querySelector("#lsc").onclick=e=>{const b=e.target.closest("[data-sc]");if(!b)return;larnScope=b.dataset.sc;draw()};
+     const lc=box.querySelector("#lcond");if(lc)lc.onchange=()=>{if(lc.value)p.larnCond=lc.value;else delete p.larnCond;savePaz(p);draw();rerender()}};
+   draw()},true);
 }
 
 /* ═════════ alternative standard ═════════ */
@@ -1607,7 +1717,7 @@ function viewDati(){
    <div class="actions"><button class="btn" id="bk">Crea backup</button><button class="btn" id="rs">Ripristina</button></div></div>
   <div class="card"><h3>Archivio</h3><p class="num">${state.pazienti.length} pazienti · ${FOODS.length} alimenti (${DB.foods.filter(f=>f.o==="s").length} CREA/INRAN, ${DB.foods.filter(f=>f.o==="p").length} personali, ${FOODS.filter(f=>f.o==="r").length} ricette${nU?`, ${nU} aggiunti su questo dispositivo`:""}) · ${state.kv.presets.length} preset · ${state.kv.modelli.length} giornate tipo · ${state.kv.pasti.length} pasti salvati</p>
    <p style="margin:0">I dati restano solo su questo dispositivo${state.persist?"":". <b class=\"over\">Archivio non disponibile in questa sessione.</b>"}</p></div>
-  <div class="note">NutriDesk 0.9.6 · valori nutrizionali per 100g di parte edibile</div>`);
+  <div class="note">NutriDesk 0.10 · valori nutrizionali per 100g di parte edibile</div>`);
   $("#view").querySelectorAll("[data-tm]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),mode:b.dataset.tm});rerender()});
   $("#view").querySelectorAll("[data-tc]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),color:b.dataset.tc});rerender()});
   const sb=$("#syset");if(sb)sb.onclick=syncSetup;const sn=$("#synow");if(sn)sn.onclick=()=>{toast("Sincronizzazione…");syncNow().then(()=>{rerender();toast(SY.status==="err"?"Sincronizzazione non riuscita: "+SY.err:"Sincronizzato")})};const so=$("#syoff");if(so)so.onclick=syncDisconnect;
