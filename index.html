@@ -1605,7 +1605,7 @@ function viewDati(){
    <div class="actions"><button class="btn" id="bk">Crea backup</button><button class="btn" id="rs">Ripristina</button></div></div>
   <div class="card"><h3>Archivio</h3><p class="num">${state.pazienti.length} pazienti · ${FOODS.length} alimenti (${DB.foods.filter(f=>f.o==="s").length} CREA/INRAN, ${DB.foods.filter(f=>f.o==="p").length} personali, ${FOODS.filter(f=>f.o==="r").length} ricette${nU?`, ${nU} aggiunti su questo dispositivo`:""}) · ${state.kv.presets.length} preset · ${state.kv.modelli.length} giornate tipo · ${state.kv.pasti.length} pasti salvati</p>
    <p style="margin:0">I dati restano solo su questo dispositivo${state.persist?"":". <b class=\"over\">Archivio non disponibile in questa sessione.</b>"}</p></div>
-  <div class="note">NutriDesk 0.9.3 · valori nutrizionali per 100g di parte edibile</div>`);
+  <div class="note">NutriDesk 0.9.4 · valori nutrizionali per 100g di parte edibile</div>`);
   $("#view").querySelectorAll("[data-tm]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),mode:b.dataset.tm});rerender()});
   $("#view").querySelectorAll("[data-tc]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),color:b.dataset.tc});rerender()});
   const sb=$("#syset");if(sb)sb.onclick=syncSetup;const sn=$("#synow");if(sn)sn.onclick=()=>{toast("Sincronizzazione…");syncNow().then(()=>{rerender();toast(SY.status==="err"?"Sincronizzazione non riuscita: "+SY.err:"Sincronizzato")})};const so=$("#syoff");if(so)so.onclick=syncDisconnect;
@@ -1748,11 +1748,15 @@ function exportPpd(p){
   const a=ageN(p.data_nascita);
   const vis=(p.visite||[]).filter(v=>v.peso).sort((x,y)=>dkey(x.data)-dkey(y.data)).map(v=>{const h=v.altezza||p.altezza;
     const mb=v.bia&&v.bia.mb?Math.round(v.bia.mb):(h&&a!=null?Math.round(10*v.peso+6.25*h-5*a+(p.sesso==="M"?5:-161)):0);
-    return{data:v.data,peso:v.peso,x:v.pdx!=null?v.pdx:((v.bia&&v.bia.mg)||0),mb,fabb:v.pdfabb||Math.round(mb*1.6)}});
+    return{data:v.data,peso:v.peso,x:v.pdx!=null&&v.pdx>0?v.pdx:((v.bia&&v.bia.mg)||visitCalc(p,v).mgPl||0),mb,fabb:v.pdfabb||Math.round(mb*1.6)}});
   /* Progetto Dieta richiede almeno una visita con il peso: senza, il file non si apre */
-  let wFake=null;if(!vis.length){const w=pesoRef(p)||70;if(!pesoRef(p))wFake=w;const k=Math.round((p.prescrizioni[0]||{}).kcal||2000);
+  if(!vis.length){const w=pesoRef(p)||70,fake=!pesoRef(p);const k=Math.round((p.prescrizioni[0]||{}).kcal||2000);
     vis.push({data:prs.length?prs[0].data:first,peso:w,x:0,mb:Math.round(k/1.6),fabb:k});
-    warn.push(wFake?`il paziente non ha visite con il peso: inserita una visita con peso fittizio di ${w}kg (correggilo in Progetto Dieta o aggiungi una visita in NutriDesk)`:"inserita una visita con il peso di riferimento, richiesta da Progetto Dieta")}
+    warn.push(fake?`il paziente non ha visite con il peso: inserita una visita con peso fittizio di ${w}kg (correggilo in Progetto Dieta o aggiungi una visita in NutriDesk)`:"inserita una visita con il peso di riferimento, richiesta da Progetto Dieta")}
+  /* Progetto Dieta non accetta 0 come massa grassa (%): se manca la stimo (Deurenberg, da BMI) o uso un valore tipico */
+  for(const v of vis)if(!(v.x>0)){const h=p.altezza,ag=ageN(p.data_nascita);const bmi=h?v.peso/((h/100)**2):null;
+    v.x=Math.round(bmi&&ag!=null?Math.min(45,Math.max(8,1.2*bmi+0.23*ag-10.8*(p.sesso==="M"?1:0)-5.4)):(p.sesso==="M"?18:28));
+    warn.push(`massa grassa non disponibile per la visita del ${v.data}: inserito ${v.x}% (${bmi&&ag!=null?"stima da BMI ed età":"valore tipico"})`)}
   /* pasti: solo quelli con alimenti, nell'ordine di Progetto Dieta */
   const pasti=[];let subs=0,missing=0;
   for(const d of days){const ms=d.pasti.filter(m=>m.voci.length).slice().sort((x,y)=>{const ix=PPD.MEALS.indexOf(x.nome),iy=PPD.MEALS.indexOf(y.nome);return(ix<0?99:ix)-(iy<0?99:iy)});
