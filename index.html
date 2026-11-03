@@ -434,7 +434,9 @@ const PPD = (() => {
   /* righe della prescrizione: [fabbisogno, kcal, %G, %P, %L, %×6 pasti, (kcal G,P,L)×6 pasti, kcal G,P,L totali] */
   function makePrescr(data, kcal, pG, pP, pL, split6, fabb) {
     const v = [fabb || kcal, kcal, pG, pP, pL, ...split6];
-    for (const s of split6) { const k = kcal * s / 100; v.push(Math.round(k * pG / 100), Math.round(k * pP / 100), Math.round(k * pL / 100)) }
+    /* arrotondamento "al pari" come Math.Round di .NET (142,5 → 142; 143,5 → 144) */
+    const rnd = x => { const f = Math.floor(x), d = x - f; return Math.abs(d - 0.5) < 1e-9 ? (f % 2 === 0 ? f : f + 1) : Math.round(x) };
+    for (const s of split6) { const k = kcal * s / 100; v.push(rnd(k * pG / 100), rnd(k * pP / 100), rnd(k * pL / 100)) }
     /* i totali sono la somma dei valori per pasto già arrotondati, come fa Progetto Dieta */
     let tG = 0, tP = 0, tL = 0; for (let k = 0; k < split6.length; k++) { tG += v[11 + 3 * k]; tP += v[12 + 3 * k]; tL += v[13 + 3 * k] }
     v.push(tG, tP, tL);
@@ -1605,7 +1607,7 @@ function viewDati(){
    <div class="actions"><button class="btn" id="bk">Crea backup</button><button class="btn" id="rs">Ripristina</button></div></div>
   <div class="card"><h3>Archivio</h3><p class="num">${state.pazienti.length} pazienti · ${FOODS.length} alimenti (${DB.foods.filter(f=>f.o==="s").length} CREA/INRAN, ${DB.foods.filter(f=>f.o==="p").length} personali, ${FOODS.filter(f=>f.o==="r").length} ricette${nU?`, ${nU} aggiunti su questo dispositivo`:""}) · ${state.kv.presets.length} preset · ${state.kv.modelli.length} giornate tipo · ${state.kv.pasti.length} pasti salvati</p>
    <p style="margin:0">I dati restano solo su questo dispositivo${state.persist?"":". <b class=\"over\">Archivio non disponibile in questa sessione.</b>"}</p></div>
-  <div class="note">NutriDesk 0.9.5 · valori nutrizionali per 100g di parte edibile</div>`);
+  <div class="note">NutriDesk 0.9.6 · valori nutrizionali per 100g di parte edibile</div>`);
   $("#view").querySelectorAll("[data-tm]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),mode:b.dataset.tm});rerender()});
   $("#view").querySelectorAll("[data-tc]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),color:b.dataset.tc});rerender()});
   const sb=$("#syset");if(sb)sb.onclick=syncSetup;const sn=$("#synow");if(sn)sn.onclick=()=>{toast("Sincronizzazione…");syncNow().then(()=>{rerender();toast(SY.status==="err"?"Sincronizzazione non riuscita: "+SY.err:"Sincronizzato")})};const so=$("#syoff");if(so)so.onclick=syncDisconnect;
@@ -1715,9 +1717,9 @@ function importPpd(data,fname){
   const o=PPD.read(data);
   const pz=newPaziente();Object.assign(pz,{nome:o.nome.trim()||fname.replace(/\.ppd$/i,""),data_nascita:DRE.test(o.nascita.trim())?o.nascita.trim():"",note:"Importato da "+fname});
   const hb=PPD.unhex(o.header);if(hb.length>=11){const h=hb[7]|hb[8]<<8|hb[9]<<16|hb[10]<<24;if(h>=100&&h<=230)pz.altezza=h}
-  pz.pd={header:o.header,tail:o.tail,finale:o.finale};
+  pz.pd={header:o.header,tail:o.tail,finale:o.finale,np:o.pasti.length,nd:o.date.length,dates:o.date};
   /* prescrizioni datate */
-  if(o.prescr.length)pz.prescrizioni=o.prescr.map((x,i)=>{const v=x.v;return{id:uid(),nome:o.prescr.length>1?"Dal "+x.data:"Prescrizione",dal:i===0?"":x.data,kcal:v[1]||1800,pP:v[3]||18,pL:v[4]||30,pkg:0,fibra:25,fabb:v[0],
+  if(o.prescr.length)pz.prescrizioni=o.prescr.map((x,i)=>{const v=x.v;return{id:uid(),nome:o.prescr.length>1?"Dal "+x.data:"Prescrizione",dal:i===0?"":x.data,kcal:v[1]||1800,pP:v[3]||18,pL:v[4]||30,pkg:0,fibra:25,fabb:v[0],pdv:v.slice(),
     split:PPD.MEALS.map((n,k)=>[n,v[5+k]]).filter(s=>s[1]>0)}});
   pz.prescrizioni.forEach(r=>{if(!r.split.length)r.split=SPLITS[5].map(x=>x.slice())});
   /* visite */
@@ -1741,7 +1743,10 @@ function exportPpd(p){
   const prs=p.prescrizioni.slice().sort((a,b)=>(a.dal?dkey(a.dal):0)-(b.dal?dkey(b.dal):0)).map(r=>{const t=targets(p,r);
     const pP=Math.round(t.pP),pL=Math.round(r.pL),pG=100-pP-pL;const sp=PPD.MEALS.map(n=>{const x=r.split.find(s=>s[0]===n);return x?Math.round(x[1]):0});
     r.split.forEach(s=>{if(!PPD.MEALS.includes(s[0]))warn.push(`pasto "${s[0]}" della prescrizione non previsto da Progetto Dieta`)});
-    return PPD.makePrescr(r.dal||first,Math.round(r.kcal),pG,pP,pL,sp,r.fabb||Math.round(r.kcal))});
+    const pr=PPD.makePrescr(r.dal||first,Math.round(r.kcal),pG,pP,pL,sp,r.fabb||Math.round(r.kcal));
+    /* prescrizione importata e non modificata: si riscrivono i valori originali (anche quelli ritoccati a mano in Progetto Dieta) */
+    if(Array.isArray(r.pdv)&&r.pdv.length===pr.v.length&&r.pdv.slice(0,11).every((x,i)=>x===pr.v[i]))pr.v=r.pdv.slice();
+    return pr});
   /* Progetto Dieta all'apertura cerca la prescrizione in vigore: la prima non deve essere nel futuro */
   const tdy=today();if(prs.length&&dkey(prs[0].data)>dkey(tdy)&&!(p.prescrizioni.find(r=>r.dal)))prs[0].data=tdy;
   /* visite */
@@ -1769,10 +1774,15 @@ function exportPpd(p){
       if(righe.length)pasti.push({data:d.data,nome:m.nome,righe})}}
   /* calendario dal primo all'ultimo giorno */
   const date=[];if(days.length){const s=days[0].data.split("/"),e=days[days.length-1].data.split("/");let t=new Date(+s[2],+s[1]-1,+s[0]);const end=new Date(+e[2],+e[1]-1,+e[0]);while(t<=end&&date.length<5000){date.push(dstr(t));t.setDate(t.getDate()+1)}}
+  /* il calendario parte dalla prima prescrizione, come nei file di Progetto Dieta */
+  if(date.length&&prs.length&&dkey(prs[0].data)<dkey(date[0])){const s0=prs[0].data.split("/");let t=new Date(+s0[2],+s0[1]-1,+s0[0]);const pre=[];while(dstr(t)!==date[0]&&pre.length<400){pre.push(dstr(t));t.setDate(t.getDate()+1)}date.unshift(...pre)}
+  /* calendario originale del file Progetto Dieta: si conserva (unito ai giorni attuali) */
+  if(p.pd&&Array.isArray(p.pd.dates)){const u=new Set(date);p.pd.dates.forEach(x=>u.add(x));date.length=0;[...u].sort((a,b)=>dkey(a)-dkey(b)).forEach(x=>date.push(x))}
   let nascita=p.data_nascita;if(!DRE.test(nascita||"")){nascita="01/01/2000";warn.push("data di nascita mancante: inserita 01/01/2000 (correggila)")}
   let header=p.pd&&p.pd.header;if(!header){const hb=PPD.unhex(PPD.HEADER_TPL);if(p.altezza){const h=Math.round(p.altezza);hb[7]=h&255;hb[8]=h>>8&255;hb[9]=0;hb[10]=0}header=PPD.hex(hb)}
-  const bytes=PPD.write({versione:"2.0",nome:p.nome,nascita,header,prescr:prs,visite:vis,pasti,tail:p.pd&&p.pd.tail,date,finale:p.pd&&p.pd.finale!=null&&p.pd.finale<prs.length+date.length+pasti.length?p.pd.finale:prs.length+date.length+pasti.length-1});
-  /* "finale": ultimo nodo dell'albero di Progetto Dieta (prescrizioni + date + pasti); nel file originale vale proprio così (2+41+151-1=193) */
+  const bytes=PPD.write({versione:"2.0",nome:p.nome,nascita,header,prescr:prs,visite:vis,pasti,tail:p.pd&&p.pd.tail,date,finale:p.pd&&p.pd.finale!=null&&p.pd.np===pasti.length&&p.pd.nd===date.length?p.pd.finale:0});
+  /* "finale" è l'elemento selezionato nell'albero dei pasti di Progetto Dieta: se il numero di pasti o di giorni cambia,
+     il valore originale può puntare fuori dall'albero (errore in cercaSelezione), quindi si riparte dal primo elemento */
   return{bytes,warn:[...new Set(warn)],subs,missing,nPasti:pasti.length};
 }
 function exportPpdUI(p){
