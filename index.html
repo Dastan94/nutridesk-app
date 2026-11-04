@@ -1717,13 +1717,15 @@ function viewDati(){
    <div class="actions"><button class="btn" id="bk">Crea backup</button><button class="btn" id="rs">Ripristina</button></div></div>
   <div class="card"><h3>Archivio</h3><p class="num">${state.pazienti.length} pazienti · ${FOODS.length} alimenti (${DB.foods.filter(f=>f.o==="s").length} CREA/INRAN, ${DB.foods.filter(f=>f.o==="p").length} personali, ${FOODS.filter(f=>f.o==="r").length} ricette${nU?`, ${nU} aggiunti su questo dispositivo`:""}) · ${state.kv.presets.length} preset · ${state.kv.modelli.length} giornate tipo · ${state.kv.pasti.length} pasti salvati</p>
    <p style="margin:0">I dati restano solo su questo dispositivo${state.persist?"":". <b class=\"over\">Archivio non disponibile in questa sessione.</b>"}</p></div>
-  <div class="note">NutriDesk 0.10 · valori nutrizionali per 100g di parte edibile</div>`);
+  <div class="note">NutriDesk 0.10.1 · valori nutrizionali per 100g di parte edibile</div>`);
   $("#view").querySelectorAll("[data-tm]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),mode:b.dataset.tm});rerender()});
   $("#view").querySelectorAll("[data-tc]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),color:b.dataset.tc});rerender()});
   const sb=$("#syset");if(sb)sb.onclick=syncSetup;const sn=$("#synow");if(sn)sn.onclick=()=>{toast("Sincronizzazione…");syncNow().then(()=>{rerender();toast(SY.status==="err"?"Sincronizzazione non riuscita: "+SY.err:"Sincronizzato")})};const so=$("#syoff");if(so)so.onclick=syncDisconnect;
   $("#imp").onclick=()=>pickFile(".xlsx,.xls,.ppd,.ndiet,.json,.cpd");$("#rs").onclick=()=>pickFile(".json");$("#bk").onclick=backup;
 }
-function pickFile(acc){const i=$("#filein");i.accept=acc;i.value="";i.onchange=()=>{[...i.files].forEach(handleFile)};i.click()}
+/* su Android il selettore non conosce i tipi .ppd/.cpd/.ndiet e li mostra in grigio: lì si accetta qualsiasi file e il tipo si riconosce dal contenuto */
+const isNative=()=>!!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());
+function pickFile(acc){const i=$("#filein");if(isNative()||/Android/i.test(navigator.userAgent))i.removeAttribute("accept");else i.accept=acc;i.value="";i.onchange=()=>{[...i.files].forEach(handleFile)};i.click()}
 /* riconosce il tipo anche quando il nome non ha estensione (file aperti da Android) */
 function sniffName(name,buf){if(/\.(ppd|cpd|ndiet|json|xlsx?|csv)$/i.test(name))return name;
   const head=new TextDecoder("latin1").decode(buf.slice(0,24));
@@ -1913,10 +1915,12 @@ async function saveBinary(name,bytes,mime){
 }
 
 async function importCpd(buf){
-  const txt=new TextDecoder("utf-8").decode(buf),parts=txt.split(/\n?(ALIMENTO|RICETTA|PREFERITO)\n/);let n=0;
+  /* file originali di Progetto Dieta: codifica Windows-1252 e separatore "§"; copie risalvate: UTF-8 con "�" */
+  let txt,SEP="\uFFFD";try{txt=new TextDecoder("utf-8",{fatal:true}).decode(buf);if(txt.includes("\u00A7"))SEP="\u00A7"}catch(e){txt=new TextDecoder("windows-1252").decode(buf);SEP="\u00A7"}
+  const parts=txt.split(/\n?(ALIMENTO|RICETTA|PREFERITO)\n/);let n=0;
   for(let i=1;i<parts.length;i+=2){
-    if(parts[i]==="PREFERITO"){const f=parts[i+1].split("�"),fd=food(f[1]||""),g=num(f[3]);if(fd&&g){const k=key(fd.n),L=state.kv.porzioni[k]=state.kv.porzioni[k]||[],l=(f[2]||"").replace(fd.n,"").replace(/^[\s-]+/,"").trim()||fmt(g)+"g";if(!L.some(x=>x.g===g)&&!DB.prefs.some(x=>key(x.f)===k&&x.g===g)){L.push({l,g});await saveKV("porzioni")}}continue}
-    if(parts[i]!=="ALIMENTO")continue;let f=parts[i+1].split("�");
+    if(parts[i]==="PREFERITO"){const f=parts[i+1].split(SEP),fd=food(f[1]||""),g=num(f[3]);if(fd&&g){const k=key(fd.n),L=state.kv.porzioni[k]=state.kv.porzioni[k]||[],l=(f[2]||"").replace(fd.n,"").replace(/^[\s-]+/,"").trim()||fmt(g)+"g";if(!L.some(x=>x.g===g)&&!DB.prefs.some(x=>key(x.f)===k&&x.g===g)){L.push({l,g});await saveKV("porzioni")}}continue}
+    if(parts[i]!=="ALIMENTO")continue;let f=parts[i+1].split(SEP);
     if(f.length<91)continue;const extra=f.length-91;let name=f.slice(2,3+extra).join("·").trim();
     if(extra){const re=new RegExp("^"+f.slice(2,3+extra).map(x=>x.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join(".{1,2}")+"$","i");const m=FOODS.find(x=>re.test(x.n));if(m)name=m.n}
     f=[f[0],f[1],name,...f.slice(3+extra)];
