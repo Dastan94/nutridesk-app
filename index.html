@@ -277,7 +277,8 @@ svg.chart text{fill:var(--ink-3);font-size:11px;font-family:var(--font)}
 .lpc{font-size:12px;font-weight:650;min-width:38px;text-align:right}
 .lpc.ok{color:var(--ok)}.lpc.near{color:var(--l)}.lpc.low,.lpc.high{color:var(--warn)}
 @media (max-width:560px){.lrow{grid-template-columns:minmax(0,1fr) auto}.lm{grid-column:1/-1}.lm:empty{display:none}}
-.sheet{position:relative}
+.sheet{position:relative;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.sheet>.menu,.sheet>.field,.sheet>.actions,.sheet>h2,.sheet>p{flex:none}
 .grabzone{flex:none;height:36px;margin:-8px -16px -4px;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:grab}
 .grabzone .grab{margin:0}
 .sheetx{position:absolute;top:10px;right:max(10px,env(safe-area-inset-right,0px));width:34px;height:34px;border-radius:17px;border:0;background:var(--sunken);color:var(--ink-2);display:grid;place-items:center;z-index:2}
@@ -1823,7 +1824,7 @@ function viewDati(){
    <div class="actions"><button class="btn" id="bk">Crea backup</button><button class="btn" id="rs">Ripristina</button></div></div>
   <div class="card"><h3>Archivio</h3><p class="num">${state.pazienti.length} pazienti · ${FOODS.length} alimenti (${DB.foods.filter(f=>f.o==="s").length} CREA/INRAN, ${DB.foods.filter(f=>f.o==="p").length} personali, ${FOODS.filter(f=>f.o==="r").length} ricette${nU?`, ${nU} aggiunti su questo dispositivo`:""}) · ${state.kv.presets.length} preset · ${state.kv.modelli.length} giornate tipo · ${state.kv.pasti.length} pasti salvati</p>
    <p style="margin:0">I dati restano solo su questo dispositivo${state.persist?"":". <b class=\"over\">Archivio non disponibile in questa sessione.</b>"}</p></div>
-  <div class="note">NutriDesk 0.11 · valori nutrizionali per 100g di parte edibile</div>`);
+  <div class="note">NutriDesk 0.11.1 · valori nutrizionali per 100g di parte edibile</div>`);
   $("#view").querySelectorAll("[data-tm]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),mode:b.dataset.tm});rerender()});
   $("#view").querySelectorAll("[data-tc]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),color:b.dataset.tc});rerender()});
   const sb=$("#syset");if(sb)sb.onclick=syncSetup;const sn=$("#synow");if(sn)sn.onclick=()=>{toast("Sincronizzazione…");syncNow().then(()=>{rerender();toast(SY.status==="err"?"Sincronizzazione non riuscita: "+SY.err:"Sincronizzato")})};const so=$("#syoff");if(so)so.onclick=syncDisconnect;
