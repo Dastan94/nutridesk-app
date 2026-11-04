@@ -278,11 +278,18 @@ svg.chart text{fill:var(--ink-3);font-size:11px;font-family:var(--font)}
 .lpc.ok{color:var(--ok)}.lpc.near{color:var(--l)}.lpc.low,.lpc.high{color:var(--warn)}
 @media (max-width:560px){.lrow{grid-template-columns:minmax(0,1fr) auto}.lm{grid-column:1/-1}.lm:empty{display:none}}
 .sheet{position:relative}
-.grabzone{flex:none;height:22px;margin:-8px -16px 4px;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:grab}
+.grabzone{flex:none;height:36px;margin:-8px -16px -4px;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:grab}
 .grabzone .grab{margin:0}
-.sheetx{position:absolute;top:8px;right:max(10px,env(safe-area-inset-right,0px));width:34px;height:34px;border-radius:17px;border:0;background:var(--sunken);color:var(--ink-2);display:grid;place-items:center;z-index:2}
+.sheetx{position:absolute;top:10px;right:max(10px,env(safe-area-inset-right,0px));width:34px;height:34px;border-radius:17px;border:0;background:var(--sunken);color:var(--ink-2);display:grid;place-items:center;z-index:2}
 .sheetx svg{width:18px;height:18px}
 .sheet>h2{padding-right:40px}
+.fu{display:inline-block;margin-left:6px;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--sunken);color:var(--ink-2);white-space:nowrap}
+.fu.scaduto,.fu.ricontattare{background:color-mix(in srgb,var(--warn) 16%,var(--surface));color:var(--warn)}
+.fu.oggi,.fu.presto{background:var(--accent-soft);color:var(--accent)}
+.rf-t th,.rf-t td{text-align:right;font-size:9.5pt}.rf-t th:first-child,.rf-t td:first-child{text-align:left}
+.rf-t thead th small{font-weight:400}
+.rf-h{color:var(--pg);font-weight:700;font-size:10.5pt;margin:12px 0 4px}
+.rf-n{font-size:9.5pt;margin:4px 0}
 /* stampa della dieta */
 .pd-opts{display:flex;flex-wrap:wrap;gap:6px 16px;margin:10px 0 12px}
 .pd-o{display:flex;align-items:center;gap:6px;font-size:14px}
@@ -659,12 +666,16 @@ const W=html=>`<div class="wrap">${html}</div>`;
 
 /* ═════════ pazienti ═════════ */
 let qPaz="";
+let pazFu=false;
 function viewPazienti(){
   setBar(`<h1>NutriDesk<span class="sub">Pazienti${syncOn()?` · <span id="sybadge">${esc(syncLabel())}</span>`:""}</span></h1>`);
-  $("#view").innerHTML=W(`<div class="search">${I.search}<input id="qpaz" type="search" placeholder="Cerca paziente" value="${esc(qPaz)}" autocomplete="off"></div><div class="list grid" id="plist"></div>`);
-  const draw=()=>{const q=norm(qPaz);const L=state.pazienti.filter(p=>norm(p.nome).includes(q)).sort((a,b)=>(b.updated||0)-(a.updated||0));
+  const nFu=state.pazienti.filter(fuNeeds).length;
+  $("#view").innerHTML=W(`<div class="search">${I.search}<input id="qpaz" type="search" placeholder="Cerca paziente" value="${esc(qPaz)}" autocomplete="off"></div>
+   ${nFu||pazFu?`<div class="pills" id="pfu"><button class="pill" data-fu="0" aria-pressed="${!pazFu}">Tutti</button><button class="pill" data-fu="1" aria-pressed="${pazFu}">Da ricontattare (${nFu})</button></div>`:""}<div class="list grid" id="plist"></div>`);
+  const pf=$("#pfu");if(pf)pf.onclick=e=>{const b=e.target.closest("[data-fu]");if(!b)return;pazFu=b.dataset.fu==="1";viewPazienti()};
+  const draw=()=>{const q=norm(qPaz);const L=state.pazienti.filter(p=>norm(p.nome).includes(q)&&(!pazFu||fuNeeds(p))).sort(pazFu?(a,b)=>(daysTo((a.follow||{}).data||"01/01/1900")??-1e5)-(daysTo((b.follow||{}).data||"01/01/1900")??-1e5):(a,b)=>(b.updated||0)-(a.updated||0));
     $("#plist").innerHTML=L.length?L.map(p=>{const ini=p.nome.split(/\s+/).map(w=>w[0]||"").slice(0,2).join("").toUpperCase();const v=lastVisit(p);
-      return `<button class="row" data-id="${p.id}"><span class="avatar">${esc(ini)}</span><span class="main"><span class="t">${esc(p.nome)}</span><span class="s">${[age(p.data_nascita),R(p).kcal+"kcal",p.giorni.length+(p.giorni.length===1?" giorno":" giorni"),v?"ultima visita "+v.data:""].filter(Boolean).join(" · ")}</span></span></button>`}).join("")
+      return `<button class="row" data-id="${p.id}"><span class="avatar">${esc(ini)}</span><span class="main"><span class="t">${esc(p.nome)}</span><span class="s">${[age(p.data_nascita),R(p).kcal+"kcal",p.giorni.length+(p.giorni.length===1?" giorno":" giorni"),v?"ultima visita "+v.data:""].filter(Boolean).join(" · ")}${fuBadge(p)}</span></span></button>`}).join("")
       :`<div class="empty"><b>${state.pazienti.length?"Nessun risultato":"Nessun paziente"}</b>${state.pazienti.length?"Prova con un altro nome.":"Crea un paziente con il pulsante +, oppure importa un file .ppd, .ndiet o Excel dalla scheda Dati."}</div>`};
   draw();$("#qpaz").oninput=e=>{qPaz=e.target.value;draw()};
   $("#plist").onclick=e=>{const b=e.target.closest("[data-id]");if(b)openPaz(state.pazienti.find(p=>p.id===b.dataset.id))};
@@ -705,13 +716,15 @@ function pazMenu(p){
   sheet(`<h2>${esc(p.nome)}</h2><div class="menu">
     <button data-a="ana">Dati anagrafici<small>Nome, nascita, altezza, contatti, note</small></button>
     <button data-a="prt">Stampa dieta<small>Tabella settimanale o giorno per giorno, anche in PDF</small></button>
+    <button data-a="fu">Prossimo controllo<small>${esc(fuState(p).t||"Programma la data e aggiungila al calendario")}</small></button>
+    <button data-a="ref" ${(p.visite||[]).length?"":"disabled"}>Referto della visita<small>Misure a confronto con la visita precedente e la prima, andamento del peso</small></button>
     <button data-a="spesa">Lista della spesa<small>Quantità totali dei giorni scelti, divise per reparto</small></button>
     <button data-a="alt">Applica alternative standard<small>A tutti i giorni: aggiunge le alternative dei gruppi (pane, pasta, secondi…)</small></button>
     <button data-a="exp">Esporta paziente (.ndiet)<small>Diete, prescrizione e visite, per un altro dispositivo</small></button>
     <button data-a="ppd">Esporta per Progetto Dieta (.ppd)<small>File apribile con Progetto Dieta 2.0: pasti, prescrizioni e visite</small></button>
     <button data-a="del" class="danger">Elimina paziente<small>Rimuove paziente, diete e visite da questo dispositivo</small></button></div>`,s=>{
    s.onclick=e=>{const a=e.target.closest("[data-a]")?.dataset.a;if(!a)return;closeSheet();
-     if(a==="ana")editAnagrafica(p);if(a==="exp")exportNdiet(p);if(a==="prt")printSheet(p);if(a==="spesa")shoppingSheet(p);if(a==="alt")applyAltDays(p,p.giorni);if(a==="ppd")exportPpdUI(p);
+     if(a==="ana")editAnagrafica(p);if(a==="exp")exportNdiet(p);if(a==="prt")printSheet(p);if(a==="spesa")shoppingSheet(p);if(a==="fu")editFollow(p);if(a==="ref")refertoSheet(p);if(a==="alt")applyAltDays(p,p.giorni);if(a==="ppd")exportPpdUI(p);
      if(a==="del")confirmSheet(`Eliminare ${p.nome}?`,"Paziente, giorni di dieta e visite vengono rimossi da questo dispositivo. Senza un backup non si possono recuperare.","Elimina",async()=>{state.pazienti=state.pazienti.filter(x=>x!==p);try{await store.del("pazienti",p.id)}catch(e){}markDirty("paz",p.id);history.back();toast("Paziente eliminato")})}});
 }
 
@@ -1015,10 +1028,10 @@ function anaCard(p){const rows=[["Nome",p.nome],["Data di nascita",p.data_nascit
    ${p.note?`<p class="note" style="white-space:pre-wrap;margin-bottom:0">${esc(p.note)}</p>`:""}</div>`}
 function visiteHTML(p){
   const V=(p.visite||[]).slice().sort((a,b)=>dkey(a.data)-dkey(b.data));
-  if(!V.length)return anaCard(p)+esclCard(p)+`<div class="empty"><b>Nessuna visita</b>Registra peso, circonferenze, bioimpedenza e pliche con il pulsante +.</div>`;
+  if(!V.length)return anaCard(p)+esclCard(p)+fuCard(p)+`<div class="empty"><b>Nessuna visita</b>Registra peso, circonferenze, bioimpedenza e pliche con il pulsante +.</div>`;
   const last=V[V.length-1],c=visitCalc(p,last),PW=V.filter(v=>v.peso),first=PW[0],lw=PW[PW.length-1];
   const dW=PW.length>1?lw.peso-first.peso:null,b=last.bia||{};
-  return anaCard(p)+esclCard(p)+`<div class="card"><div class="head"><h3>Ultima visita · ${esc(last.data)}</h3></div>
+  return anaCard(p)+esclCard(p)+fuCard(p)+`<div class="card"><div class="head"><h3>Ultima visita · ${esc(last.data)}</h3><button class="btn small" id="refbtn">Referto</button></div>
    <div class="kv num">${lw?`<div><span>Peso</span><b>${fmt(lw.peso,1)}kg</b>${dW!=null?`<span>${dW>0?"+":""}${fmt(dW,1)}kg dal ${esc(first.data)}</span>`:""}</div>`:""}
    ${c.bmi?`<div><span>BMI</span><b>${fmt(c.bmi,1)}</b><span>${bmiClass(c.bmi)}</span></div>`:""}
    ${last.vita?`<div><span>Vita</span><b>${fmt(last.vita,1)}cm</b>${c.whtr?`<span>vita/altezza ${fmt(c.whtr,2)}</span>`:""}</div>`:""}
@@ -1057,7 +1070,7 @@ function chartHTML(V,p){
    </svg></div>`;
 }
 function bindVisite(p){
-  const ae=$("#anaedit");if(ae)ae.onclick=()=>editAnagrafica(p);const ee=$("#escledit");if(ee)ee.onclick=()=>editEscl(p);
+  const ae=$("#anaedit");if(ae)ae.onclick=()=>editAnagrafica(p);const ee=$("#escledit");if(ee)ee.onclick=()=>editEscl(p);bindFu(p);
   fab("Visita",()=>editVisita(p,null));
   $("#view").querySelectorAll("[data-cm]").forEach(b=>b.onclick=()=>{chartMetric=b.dataset.cm;rerender()});
   $("#view").querySelectorAll("[data-vid]").forEach(r=>r.onclick=()=>editVisita(p,p.visite.find(v=>v.id===r.dataset.vid)));
@@ -1397,6 +1410,93 @@ function larnSheet(p){
    draw()},true);
 }
 
+/* ═════════ follow-up: prossimo controllo, promemoria, referto della visita ═════════ */
+const FU_WEEKS_DEF=8;  /* senza visite da più di N settimane → da ricontattare */
+const daysTo=s=>{const d=toDate(s);if(!d)return null;const t=new Date();t.setHours(0,0,0,0);return Math.round((d-t)/864e5)};
+/* stato del follow-up: {k:"scaduto"|"oggi"|"presto"|"programmato"|"nessuno"|"ricontattare", t:testo} */
+function fuState(p){const fu=p.follow||{},wk=state.kv.opt.fuWeeks||FU_WEEKS_DEF;
+  if(fu.data&&DRE.test(fu.data)){const n=daysTo(fu.data);
+    if(n<0)return{k:"scaduto",t:`controllo del ${fu.data.slice(0,5)} scaduto da ${-n} ${-n===1?"giorno":"giorni"}`};
+    if(n===0)return{k:"oggi",t:`controllo oggi${fu.ora?" alle "+fu.ora:""}`};
+    if(n<=7)return{k:"presto",t:`controllo ${n===1?"domani":"tra "+n+" giorni"} (${fu.data.slice(0,5)})`};
+    return{k:"programmato",t:`prossimo controllo ${fu.data}`}}
+  const v=lastVisit(p);if(!v)return{k:"nessuno",t:""};const n=-daysTo(v.data);
+  if(n!=null&&n>wk*7)return{k:"ricontattare",t:`nessuna visita da ${Math.floor(n/7)} settimane`};
+  return{k:"nessuno",t:""}}
+const fuNeeds=p=>["scaduto","oggi","presto","ricontattare"].includes(fuState(p).k);
+const fuBadge=p=>{const s=fuState(p);return s.t?`<span class="fu ${s.k}">${esc(s.t)}</span>`:""};
+function fuCard(p){const fu=p.follow||{},s=fuState(p);
+  return `<div class="card"><div class="head"><h3>Prossimo controllo</h3><button class="btn small" id="fuedit">${fu.data?"Modifica":"Programma"}</button></div>
+   ${fu.data?`<div class="kv"><div><span>Data</span><b style="font-size:15px">${esc(dlabel(fu.data))}${fu.ora?" · "+esc(fu.ora):""}</b>${s.t?`<span class="fu ${s.k}" style="margin-top:4px">${esc(s.t)}</span>`:""}</div></div>
+     ${fu.nota?`<p class="note" style="white-space:pre-wrap;margin-bottom:0">${esc(fu.nota)}</p>`:""}
+     <div class="actions" style="margin-top:10px"><button class="btn" id="fuics">Aggiungi al calendario</button><button class="btn" id="fudone">Fatto</button></div>`
+    :`<p class="note" style="margin:0">${s.t?esc(s.t[0].toUpperCase()+s.t.slice(1))+". ":""}Nessun controllo programmato.</p>`}</div>`}
+function bindFu(p){const e=$("#fuedit");if(e)e.onclick=()=>editFollow(p);const i=$("#fuics");if(i)i.onclick=()=>fuIcs(p);
+  const d=$("#fudone");if(d)d.onclick=()=>{delete p.follow;savePaz(p);rerender();toast("Controllo segnato come fatto")};
+  const r=$("#refbtn");if(r)r.onclick=()=>refertoSheet(p)}
+function editFollow(p){const fu=clean(p.follow||{}),base=new Date();
+  sheet(`<h2>Prossimo controllo</h2><form id="fuf">
+   <div class="quick" id="fuq" style="margin-top:0">${[2,4,6,8,12].map(w=>`<button type="button" class="pill" data-w="${w}">tra ${w} settimane</button>`).join("")}</div>
+   <div class="grid2"><div class="field"><label for="fud">Data</label><input id="fud" inputmode="numeric" placeholder="gg/mm/aaaa" value="${esc(fu.data||"")}"></div>
+   <div class="field"><label for="fuo">Ora</label><input id="fuo" inputmode="numeric" placeholder="es. 15:30" value="${esc(fu.ora||"")}"></div></div>
+   <div class="field"><label for="fun">Nota</label><input id="fun" value="${esc(fu.nota||"")}" placeholder="es. portare il diario alimentare"></div>
+   <span class="hint" style="display:block;margin:-6px 0 10px">Le settimane si contano da oggi.</span>
+   <div class="actions">${fu.data?`<button type="button" class="btn danger" id="fudel">Rimuovi</button>`:`<button type="button" class="btn" data-close>Annulla</button>`}<button class="btn primary">Salva</button></div></form>`,s=>{
+   s.querySelector("#fuq").onclick=e=>{const b=e.target.closest("[data-w]");if(!b)return;s.querySelector("#fud").value=dstr(addDays(base,7*+b.dataset.w))};
+   const del=s.querySelector("#fudel");if(del)del.onclick=()=>{delete p.follow;savePaz(p);closeSheet();rerender()};
+   s.querySelector("#fuf").onsubmit=e=>{e.preventDefault();const d=s.querySelector("#fud").value.trim(),o=s.querySelector("#fuo").value.trim().replace(".",":");
+     if(!DRE.test(d))return toast("Scrivi la data come gg/mm/aaaa");if(o&&!/^\d{1,2}:\d{2}$/.test(o))return toast("Scrivi l'ora come 15:30");
+     p.follow={data:d,ora:o?o.padStart(5,"0"):"",nota:s.querySelector("#fun").value.trim()};savePaz(p);closeSheet();rerender();toast("Controllo programmato")}});
+}
+/* promemoria per il calendario (.ics): con l'ora 45 minuti, senza ora tutto il giorno; avviso il giorno prima */
+function fuIcs(p){const fu=p.follow;if(!fu||!fu.data)return;const[d,m,y]=fu.data.split("/"),ymd=y+m+d,pad2=n=>String(n).padStart(2,"0");
+  const icsEsc=t=>String(t||"").replace(/\\/g,"\\\\").replace(/[,;]/g,c=>"\\"+c).replace(/\n/g,"\\n");
+  const now=new Date(),stamp=now.getUTCFullYear()+pad2(now.getUTCMonth()+1)+pad2(now.getUTCDate())+"T"+pad2(now.getUTCHours())+pad2(now.getUTCMinutes())+"00Z";
+  let when;if(fu.ora){const[h,mi]=fu.ora.split(":").map(Number),end=new Date(+y,+m-1,+d,h,mi+45);
+    when=[`DTSTART:${ymd}T${pad2(h)}${pad2(mi)}00`,`DTEND:${end.getFullYear()}${pad2(end.getMonth()+1)}${pad2(end.getDate())}T${pad2(end.getHours())}${pad2(end.getMinutes())}00`]}
+  else{const nx=addDays(new Date(+y,+m-1,+d),1);when=[`DTSTART;VALUE=DATE:${ymd}`,`DTEND;VALUE=DATE:${nx.getFullYear()}${pad2(nx.getMonth()+1)}${pad2(nx.getDate())}`]}
+  const ics=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//NutriDesk//IT","CALSCALE:GREGORIAN","BEGIN:VEVENT",`UID:${p.id}-${ymd}@nutridesk`,`DTSTAMP:${stamp}`,...when,
+    `SUMMARY:${icsEsc("Controllo "+p.nome)}`,...(fu.nota?[`DESCRIPTION:${icsEsc(fu.nota)}`]:[]),"BEGIN:VALARM","ACTION:DISPLAY",`DESCRIPTION:${icsEsc("Controllo "+p.nome)}`,"TRIGGER:-P1D","END:VALARM","END:VEVENT","END:VCALENDAR"].join("\r\n")+"\r\n";
+  saveBinary(`Controllo ${p.nome.replace(/[^\w\- ]+/g,"").trim()} ${y}-${m}-${d}.ics`,new TextEncoder().encode(ics),"text/calendar")}
+/* referto della visita */
+function refertoHTML(p,v,o){const V=(p.visite||[]).slice().sort((a,b)=>dkey(a.data)-dkey(b.data)),i=V.indexOf(v),prev=i>0?V[i-1]:null,first=V[0]!==v?V[0]:null;
+  const c=x=>x?visitCalc(p,x):{},cv=c(v),cp=c(prev),cf=c(first);
+  const R=[["Peso","kg",1,x=>x&&x.peso],["BMI","",1,(x,k)=>k.bmi],["Circonferenza vita","cm",1,x=>x&&x.vita],["Circonferenza fianchi","cm",1,x=>x&&x.fianchi],["Rapporto vita/altezza","",2,(x,k)=>k.whtr],["Rapporto vita/fianchi","",2,(x,k)=>k.whr],
+    ["Braccio","cm",1,x=>x&&x.braccio],["Coscia","cm",1,x=>x&&x.coscia],["Polpaccio","cm",1,x=>x&&x.polpaccio],
+    ["Massa grassa (BIA)","%",1,x=>x&&x.bia&&x.bia.mg],["Massa magra (BIA)","kg",1,x=>x&&x.bia&&x.bia.mm],["Acqua totale (BIA)","L",1,x=>x&&x.bia&&x.bia.tbw],["Angolo di fase","°",1,x=>x&&x.bia&&x.bia.pa],["Metabolismo basale","kcal",0,x=>x&&x.bia&&x.bia.mb],
+    ["Massa grassa (pliche)","%",1,(x,k)=>k.mgPl]].map(([l,u,d,fn])=>({l,u,d,a:fn(v,cv),b:prev?fn(prev,cp):null,f:first?fn(first,cf):null})).filter(r=>r.a);
+  const dv=(a,b,d,u)=>a&&b?`${a-b>0?"+":""}${fmt(a-b,d)}${u}`:"–";
+  const pts=V.slice(0,i+1).filter(x=>x.peso).map(x=>({d:x.data,y:x.peso}));
+  let chart="";if(pts.length>1){const W=520,H=150,pl=36,pr=10,pt=12,pb=22;let mn=Math.min(...pts.map(x=>x.y)),mx=Math.max(...pts.map(x=>x.y));if(mx-mn<2){mn-=1;mx+=1}
+    const X=k=>pl+k*(W-pl-pr)/(pts.length-1),Y=y=>pt+(mx-y)*(H-pt-pb)/(mx-mn),line=pts.map((x,k)=>`${X(k).toFixed(1)},${Y(x.y).toFixed(1)}`).join(" ");
+    chart=`<div class="rf-h">Andamento del peso</div><svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;font:9px Calibri,Arial">
+      ${[mn,(mn+mx)/2,mx].map(t=>`<line x1="${pl}" x2="${W-pr}" y1="${Y(t).toFixed(1)}" y2="${Y(t).toFixed(1)}" stroke="#ddd"/><text x="${pl-4}" y="${(Y(t)+3).toFixed(1)}" text-anchor="end" fill="#666">${fmt(t,1)}</text>`).join("")}
+      <polyline points="${line}" fill="none" stroke="#2E6B4F" stroke-width="2"/>${pts.map((x,k)=>`<circle cx="${X(k).toFixed(1)}" cy="${Y(x.y).toFixed(1)}" r="3" fill="#2E6B4F"/>`).join("")}
+      ${pts.map((x,k)=>k===0||k===pts.length-1||pts.length<=6?`<text x="${X(k).toFixed(1)}" y="${H-6}" text-anchor="${k===0?"start":k===pts.length-1?"end":"middle"}" fill="#666">${x.d.slice(0,6)+x.d.slice(8)}</text>`:"").join("")}</svg>`}
+  const fu=p.follow&&p.follow.data?p.follow:null;
+  return `<div class="pdoc pd-port"><header class="pd-h"><div><div class="pd-t">${esc(o.titoloRef||"Referto della visita")}</div><div class="pd-n">${esc(p.nome)}</div></div><div class="pd-d">${esc(v.data)}</div></header>
+    <div class="pd-s">${[age(p.data_nascita),p.sesso==="M"?"maschio":"femmina",(v.altezza||p.altezza)?`altezza ${fmt(v.altezza||p.altezza,1)}cm`:"",p.peso_obiettivo?`obiettivo ${p.peso_obiettivo}`:""].filter(Boolean).join(" · ")}</div>
+    <table class="pd-tab rf-t"><thead><tr><th>Misura</th><th>${esc(v.data)}</th>${prev?`<th>Visita precedente<br><small>${esc(prev.data)}</small></th><th>Variazione</th>`:""}${first&&first!==prev?`<th>Prima visita<br><small>${esc(first.data)}</small></th><th>Variazione</th>`:""}</tr></thead><tbody>
+    ${R.map(r=>`<tr><td>${esc(r.l)}</td><td><b>${fmt(r.a,r.d)}${r.u}</b></td>${prev?`<td>${r.b?fmt(r.b,r.d)+r.u:"–"}</td><td>${dv(r.a,r.b,r.d,r.u)}</td>`:""}${first&&first!==prev?`<td>${r.f?fmt(r.f,r.d)+r.u:"–"}</td><td>${dv(r.a,r.f,r.d,r.u)}</td>`:""}</tr>`).join("")}</tbody></table>
+    ${cv.bmi&&o.bmiClass!==false?`<p class="rf-n">BMI ${fmt(cv.bmi,1)}: ${bmiClass(cv.bmi)}.</p>`:""}
+    ${chart}
+    ${v.note&&o.noteVisita?`<div class="rf-h">Note</div><p class="rf-n" style="white-space:pre-wrap">${esc(v.note)}</p>`:""}
+    ${fu?`<div class="rf-h">Prossimo controllo</div><p class="rf-n">${esc(dlabel(fu.data))}${fu.ora?" alle "+esc(fu.ora):""}${fu.nota?" · "+esc(fu.nota):""}</p>`:""}
+    ${o.firma?`<div class="pd-fi">${esc(o.firma)}</div>`:""}</div>`}
+function refertoSheet(p){const V=(p.visite||[]).slice().sort((a,b)=>dkey(b.data)-dkey(a.data));if(!V.length)return toast("Nessuna visita");
+  const o=printOpt();let v=V[0],noteV=false,bmiC=o.bmiRef!==false;
+  sheet(`<h2>Referto della visita</h2><div class="scroll" id="rb"></div><div class="actions" style="margin-top:10px"><button class="btn" data-close>Chiudi</button><button class="btn primary" id="rgo">Stampa / Salva PDF</button></div>`,s=>{
+   const html=()=>refertoHTML(p,v,{...o,noteVisita:noteV,bmiClass:bmiC});
+   const draw=()=>{s.querySelector("#rb").innerHTML=`<div class="field"><label for="rv">Visita</label><select id="rv">${V.map((x,i)=>`<option value="${i}"${x===v?" selected":""}>${esc(x.data)}${x.peso?" · "+fmt(x.peso,1)+"kg":""}</option>`).join("")}</select></div>
+     <div class="pd-opts"><label class="pd-o"><input type="checkbox" id="rnote" ${noteV?"checked":""}>Note della visita</label><label class="pd-o"><input type="checkbox" id="rbmi" ${bmiC?"checked":""}>Classe di BMI</label></div>
+     <p class="note" style="margin-top:0">Firma e caratteri sono quelli della stampa della dieta.</p>
+     <div class="label">Anteprima</div><div class="pd-prev" id="rpv">${html()}</div>`;
+     s.querySelector("#rv").onchange=e=>{v=V[+e.target.value];draw()};s.querySelector("#rnote").onchange=e=>{noteV=e.target.checked;draw()};
+     s.querySelector("#rbmi").onchange=e=>{bmiC=e.target.checked;state.kv.opt.print={...(state.kv.opt.print||{}),bmiRef:bmiC};saveKV("opt");draw()};
+     const pv=s.querySelector("#rpv"),doc=pv.querySelector(".pdoc");if(doc){const w=doc.offsetWidth,a=pv.clientWidth-2;if(w>a)doc.style.zoom=String(a/w)}};
+   draw();s.querySelector("#rgo").onclick=()=>doPrint(html(),false,`Referto ${p.nome} ${v.data}`)},true);
+}
+
 /* ═════════ alternative standard ═════════ */
 /* Gruppi di alimenti intercambiabili (es. "Pane e sostituti"): quando uno di questi alimenti entra in un pasto,
    le alternative del gruppo vengono aggiunte da sole con le grammature equivalenti. */
@@ -1723,7 +1823,7 @@ function viewDati(){
    <div class="actions"><button class="btn" id="bk">Crea backup</button><button class="btn" id="rs">Ripristina</button></div></div>
   <div class="card"><h3>Archivio</h3><p class="num">${state.pazienti.length} pazienti · ${FOODS.length} alimenti (${DB.foods.filter(f=>f.o==="s").length} CREA/INRAN, ${DB.foods.filter(f=>f.o==="p").length} personali, ${FOODS.filter(f=>f.o==="r").length} ricette${nU?`, ${nU} aggiunti su questo dispositivo`:""}) · ${state.kv.presets.length} preset · ${state.kv.modelli.length} giornate tipo · ${state.kv.pasti.length} pasti salvati</p>
    <p style="margin:0">I dati restano solo su questo dispositivo${state.persist?"":". <b class=\"over\">Archivio non disponibile in questa sessione.</b>"}</p></div>
-  <div class="note">NutriDesk 0.10.2 · valori nutrizionali per 100g di parte edibile</div>`);
+  <div class="note">NutriDesk 0.11 · valori nutrizionali per 100g di parte edibile</div>`);
   $("#view").querySelectorAll("[data-tm]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),mode:b.dataset.tm});rerender()});
   $("#view").querySelectorAll("[data-tc]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),color:b.dataset.tc});rerender()});
   const sb=$("#syset");if(sb)sb.onclick=syncSetup;const sn=$("#synow");if(sn)sn.onclick=()=>{toast("Sincronizzazione…");syncNow().then(()=>{rerender();toast(SY.status==="err"?"Sincronizzazione non riuscita: "+SY.err:"Sincronizzato")})};const so=$("#syoff");if(so)so.onclick=syncDisconnect;
@@ -1936,12 +2036,12 @@ async function importCpd(buf){
   return n;
 }
 function fromNdiet(j){
-  const p=newPaziente();Object.assign(p,{nome:j.nome||"Senza nome",data_nascita:j.data_nascita||"",sesso:j.sesso||"F",note:j.note||"",altezza:j.altezza||null,telefono:j.telefono||"",email:j.email||"",peso_obiettivo:j.peso_obiettivo||"",visite:j.visite||[],pd:j.pd,escl:j.escl});
+  const p=newPaziente();Object.assign(p,{nome:j.nome||"Senza nome",data_nascita:j.data_nascita||"",sesso:j.sesso||"F",note:j.note||"",altezza:j.altezza||null,telefono:j.telefono||"",email:j.email||"",peso_obiettivo:j.peso_obiettivo||"",visite:j.visite||[],pd:j.pd,escl:j.escl,follow:j.follow});
   if(j.prescrizioni)p.prescrizioni=j.prescrizioni;else if(j.prescr)p.prescrizioni=[{id:uid(),nome:"Prescrizione",dal:"",...j.prescr}];else if(j.target){p.target=j.target;delete p.prescrizioni;migrate(p)}
   (j.giorni||[]).forEach(g=>p.giorni.push({data:g.data,titolo:g.titolo,pid:g.pid,pasti:(g.pasti||[]).map(m=>({nome:m.nome,voci:(m.voci||[]).map(v=>({n:v.alimento_nome,g:+v.porzione_g||100,...(v.sostituzioni?{sost:v.sostituzioni.map((n,i)=>v.rapporti&&v.rapporti[i]?{n,r:+v.rapporti[i]}:{n}),sm:v.equivalenza||"KCAL",...(v.arrotonda?{ss:+v.arrotonda}:{}),...(v.gruppo?{grp:v.gruppo}:{})}:{})}))}))}));
   p.giorni.sort((a,b)=>dkey(a.data)-dkey(b.data));return p;
 }
-const toNdiet=p=>({versione:"3.2",nome:p.nome,data_nascita:p.data_nascita,sesso:p.sesso,note:p.note,altezza:p.altezza,telefono:p.telefono,email:p.email,peso_obiettivo:p.peso_obiettivo,escl:p.escl,prescrizioni:p.prescrizioni,visite:p.visite,pd:p.pd,
+const toNdiet=p=>({versione:"3.2",nome:p.nome,data_nascita:p.data_nascita,sesso:p.sesso,note:p.note,altezza:p.altezza,telefono:p.telefono,email:p.email,peso_obiettivo:p.peso_obiettivo,escl:p.escl,follow:p.follow,prescrizioni:p.prescrizioni,visite:p.visite,pd:p.pd,
   giorni:p.giorni.map(g=>({data:g.data,titolo:g.titolo,pid:g.pid,pasti:g.pasti.map(m=>({nome:m.nome,voci:m.voci.map(v=>({alimento_nome:v.n,porzione_g:v.g,note:"",...(v.sost&&v.sost.length?{sostituzioni:v.sost.map(z=>z.n),equivalenza:v.sm||"KCAL",...(v.sost.some(z=>z.r)?{rapporti:v.sost.map(z=>z.r||null)}:{}),...(v.ss?{arrotonda:v.ss}:{}),...(v.grp?{gruppo:v.grp}:{})}:{})}))}))}))});
 async function saveFile(name,obj){
   const txt=JSON.stringify(obj,null,2),C=window.Capacitor;
