@@ -277,6 +277,12 @@ svg.chart text{fill:var(--ink-3);font-size:11px;font-family:var(--font)}
 .lpc{font-size:12px;font-weight:650;min-width:38px;text-align:right}
 .lpc.ok{color:var(--ok)}.lpc.near{color:var(--l)}.lpc.low,.lpc.high{color:var(--warn)}
 @media (max-width:560px){.lrow{grid-template-columns:minmax(0,1fr) auto}.lm{grid-column:1/-1}.lm:empty{display:none}}
+.sheet{position:relative}
+.grabzone{flex:none;height:22px;margin:-8px -16px 4px;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:grab}
+.grabzone .grab{margin:0}
+.sheetx{position:absolute;top:8px;right:max(10px,env(safe-area-inset-right,0px));width:34px;height:34px;border-radius:17px;border:0;background:var(--sunken);color:var(--ink-2);display:grid;place-items:center;z-index:2}
+.sheetx svg{width:18px;height:18px}
+.sheet>h2{padding-right:40px}
 /* stampa della dieta */
 .pd-opts{display:flex;flex-wrap:wrap;gap:6px 16px;margin:10px 0 12px}
 .pd-o{display:flex;align-items:center;gap:6px;font-size:14px}
@@ -1650,7 +1656,7 @@ function editRecipe(r){
 }
 function pickFoodInline(cb){
   const s=document.createElement("div");s.className="scrim";s.style.zIndex=30;
-  s.innerHTML=`<div class="sheet full" role="dialog" aria-modal="true"><div class="grab"></div><h2>Ingrediente</h2><div class="search">${I.search}<input id="qi" type="search" placeholder="Cerca ingrediente" autocomplete="off"></div><div class="scroll"><div class="list" id="il"></div></div><div class="actions" style="margin-top:10px"><button class="btn" id="ic">Annulla</button></div></div>`;
+  s.innerHTML=`<div class="sheet full" role="dialog" aria-modal="true"><div class="grabzone" aria-hidden="true"><div class="grab"></div></div><button type="button" class="sheetx" aria-label="Chiudi">${I.x}</button><h2>Ingrediente</h2><div class="search">${I.search}<input id="qi" type="search" placeholder="Cerca ingrediente" autocomplete="off"></div><div class="scroll"><div class="list" id="il"></div></div><div class="actions" style="margin-top:10px"><button class="btn" id="ic">Annulla</button></div></div>`;
   document.body.appendChild(s);const q=s.querySelector("#qi");
   const draw=()=>{s.querySelector("#il").innerHTML=searchFoods(q.value,"tutti").filter(f=>f.o!=="r").map(foodRow).join("")};draw();q.oninput=draw;
   const done=f=>{s.remove();cb(f)};
@@ -1717,7 +1723,7 @@ function viewDati(){
    <div class="actions"><button class="btn" id="bk">Crea backup</button><button class="btn" id="rs">Ripristina</button></div></div>
   <div class="card"><h3>Archivio</h3><p class="num">${state.pazienti.length} pazienti · ${FOODS.length} alimenti (${DB.foods.filter(f=>f.o==="s").length} CREA/INRAN, ${DB.foods.filter(f=>f.o==="p").length} personali, ${FOODS.filter(f=>f.o==="r").length} ricette${nU?`, ${nU} aggiunti su questo dispositivo`:""}) · ${state.kv.presets.length} preset · ${state.kv.modelli.length} giornate tipo · ${state.kv.pasti.length} pasti salvati</p>
    <p style="margin:0">I dati restano solo su questo dispositivo${state.persist?"":". <b class=\"over\">Archivio non disponibile in questa sessione.</b>"}</p></div>
-  <div class="note">NutriDesk 0.10.1 · valori nutrizionali per 100g di parte edibile</div>`);
+  <div class="note">NutriDesk 0.10.2 · valori nutrizionali per 100g di parte edibile</div>`);
   $("#view").querySelectorAll("[data-tm]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),mode:b.dataset.tm});rerender()});
   $("#view").querySelectorAll("[data-tc]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),color:b.dataset.tc});rerender()});
   const sb=$("#syset");if(sb)sb.onclick=syncSetup;const sn=$("#synow");if(sn)sn.onclick=()=>{toast("Sincronizzazione…");syncNow().then(()=>{rerender();toast(SY.status==="err"?"Sincronizzazione non riuscita: "+SY.err:"Sincronizzato")})};const so=$("#syoff");if(so)so.onclick=syncDisconnect;
@@ -2085,7 +2091,7 @@ async function syncDisconnect(){confirmSheet("Scollegare questo dispositivo?","I
 
 /* ═════════ fogli ═════════ */
 function sheet(html,init,full){
-  closeSheet();const s=document.createElement("div");s.className="scrim";s.innerHTML=`<div class="sheet${full?" full":""}" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`;
+  closeSheet();const s=document.createElement("div");s.className="scrim";s.innerHTML=`<div class="sheet${full?" full":""}" role="dialog" aria-modal="true"><div class="grabzone" aria-hidden="true"><div class="grab"></div></div><button type="button" class="sheetx" aria-label="Chiudi">${I.x}</button>${html}</div>`;
   s.addEventListener("click",e=>{if(e.target===s||e.target.closest("[data-close]"))closeSheet()});
   document.body.appendChild(s);init&&init(s.querySelector(".sheet"));
 }
@@ -2093,7 +2099,19 @@ function closeSheet(){document.querySelectorAll(".scrim").forEach(s=>s.remove())
 function confirmSheet(t,msg,ok,cb){sheet(`<h2>${esc(t)}</h2><p style="color:var(--ink-2);margin:0 0 14px">${esc(msg)}</p><div class="actions"><button class="btn" data-close>Annulla</button><button class="btn primary" id="ok">${esc(ok)}</button></div>`,s=>{s.querySelector("#ok").onclick=()=>{closeSheet();cb()}})}
 function askText(title,def,ph,cb){sheet(`<h2>${esc(title)}</h2><form id="tf"><div class="field"><input id="tv" value="${esc(def)}" placeholder="${esc(ph)}" aria-label="${esc(title)}"></div><div class="actions"><button type="button" class="btn" data-close>Annulla</button><button class="btn primary">Conferma</button></div></form>`,s=>{
   const i=s.querySelector("#tv");if(wide()){i.focus();i.select()}s.querySelector("#tf").onsubmit=e=>{e.preventDefault();const v=i.value.trim();closeSheet();cb(v)}})}
-window.addEventListener("keydown",e=>{if(e.key==="Escape"&&document.querySelector(".scrim")){const all=document.querySelectorAll(".scrim");all[all.length-1].remove()}});
+/* chiude il foglio in primo piano (Esc, tasto indietro di Android, ×, trascinamento della maniglia) */
+function closeTopSheet(){const all=document.querySelectorAll(".scrim");if(!all.length)return false;all[all.length-1].remove();
+  if(!document.querySelector(".scrim")&&SY.pendingRender){SY.pendingRender=false;setTimeout(rerender,0)}return true}
+window.addEventListener("keydown",e=>{if(e.key==="Escape")closeTopSheet()});
+document.addEventListener("click",e=>{if(e.target.closest(".sheetx")){e.stopPropagation();closeTopSheet()}},true);
+/* trascinare verso il basso la maniglia (o la parte alta del foglio) per chiuderlo */
+(function(){let st=null;
+  document.addEventListener("pointerdown",e=>{const z=e.target.closest(".grabzone");if(!z)return;const sh=z.closest(".sheet");st={sh,y:e.clientY,id:e.pointerId,t:Date.now()};sh.style.transition="none";try{z.setPointerCapture(e.pointerId)}catch(_){}e.preventDefault()});
+  document.addEventListener("pointermove",e=>{if(!st||e.pointerId!==st.id)return;const dy=Math.max(0,e.clientY-st.y);st.sh.style.transform=`translateY(${dy}px)`});
+  const end=e=>{if(!st||e.pointerId!==st.id)return;const dy=Math.max(0,e.clientY-st.y),v=dy/Math.max(1,Date.now()-st.t),sh=st.sh;st=null;
+    if(dy>90||(dy>30&&v>.5)){sh.style.transition="transform .15s ease-in";sh.style.transform="translateY(100%)";setTimeout(()=>{const sc=sh.closest(".scrim");if(sc){sc.remove();if(!document.querySelector(".scrim")&&SY.pendingRender){SY.pendingRender=false;setTimeout(rerender,0)}}},140)}
+    else{sh.style.transition="transform .15s ease-out";sh.style.transform=""}};
+  document.addEventListener("pointerup",end);document.addEventListener("pointercancel",end)})();
 window.addEventListener("popstate",()=>{if(document.querySelector(".scrim")){closeSheet();if(state.paz)history.pushState({paz:1},"");return}if(state.paz){const old=state.paz;state.paz=null;releasePaz(old);render()}else render()});
 window.addEventListener("resize",()=>{$("#tabs").hidden=!!state.paz&&!wide()});
 WIDE_MQ.addEventListener&&WIDE_MQ.addEventListener("change",()=>rerender());
@@ -2109,6 +2127,8 @@ addEventListener("drop",e=>{if(!e.dataTransfer||!e.dataTransfer.files.length)ret
 async function nativeOpen(url){try{const r=await window.Capacitor.Plugins.Filesystem.readFile({path:url});const bin=Uint8Array.from(atob(r.data),c=>c.charCodeAt(0));
   const name=decodeURIComponent(url).split(/[\/:]/).pop()||"file";await handleFile(new File([bin],name))}catch(e){toast("Impossibile aprire il file: "+(e&&e.message||e))}}
 (function(){const C=window.Capacitor;if(!(C&&C.isNativePlatform&&C.isNativePlatform()&&C.Plugins.App))return;
+  C.Plugins.App.addListener("backButton",()=>{if(closeTopSheet())return;if(state.paz){history.back();return}
+    if(state.tab!=="pazienti"){state.tab="pazienti";render();return}C.Plugins.App.minimizeApp?C.Plugins.App.minimizeApp():C.Plugins.App.exitApp()});
   C.Plugins.App.addListener("appUrlOpen",e=>{if(e&&e.url)nativeOpen(e.url)});
   C.Plugins.App.getLaunchUrl().then(r=>{if(r&&r.url)setTimeout(()=>nativeOpen(r.url),800)}).catch(()=>{})})();
 
