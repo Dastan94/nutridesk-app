@@ -294,6 +294,10 @@ svg.chart text{fill:var(--ink-3);font-size:11px;font-family:var(--font)}
 .dpk-g button.tod{box-shadow:inset 0 0 0 1.5px var(--accent)}
 .dpk-g button.sel{background:var(--accent);color:#fff;font-weight:700}
 .dpk-f{display:flex;gap:8px;margin-top:10px}.dpk-f .btn{flex:1}
+main{touch-action:pan-y pinch-zoom}
+.ghost{position:fixed;z-index:19;background:var(--bg);overflow:hidden;display:flex;flex-direction:column;pointer-events:none;box-shadow:0 0 28px rgba(0,0,0,.22)}
+.ghost main{flex:none}
+@media (pointer:coarse){.sheet .sheetx{display:none}}
 .sheet{position:relative;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .sheet>.menu,.sheet>.field,.sheet>.actions,.sheet>h2,.sheet>p{flex:none}
 .grabzone{flex:none;height:36px;margin:-8px -16px -4px;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:grab}
@@ -700,7 +704,7 @@ function viewPazienti(){
   $("#plist").onclick=e=>{const b=e.target.closest("[data-id]");if(b)openPaz(state.pazienti.find(p=>p.id===b.dataset.id))};
   fab("Paziente",()=>editAnagrafica(null));
 }
-function openPaz(p,tab){if(!state.paz)history.pushState({paz:1},"");if(state.paz!==p){state.paz=p;startLock(p)}state.prSel=null;state.ptab=tab||"dieta";state.day=Math.max(0,p.giorni.length-1);if(p._day!=null&&p._day<p.giorni.length)state.day=p._day;render();$("#view").scrollTop=0}
+function openPaz(p,tab){const fresh=!state.paz;if(!state.paz)history.pushState({paz:1},"");if(state.paz!==p){state.paz=p;startLock(p)}state.prSel=null;state.ptab=tab||"dieta";state.day=Math.max(0,p.giorni.length-1);if(p._day!=null&&p._day<p.giorni.length)state.day=p._day;render();$("#view").scrollTop=0;if(fresh)enterAnim()}
 function newPaziente(){return{id:uid(),nome:"",data_nascita:"",sesso:"F",telefono:"",email:"",note:"",altezza:null,peso_obiettivo:"",prescrizioni:[newPr()],giorni:[],visite:[]}}
 function editAnagrafica(p){
   const isNew=!p;p=p||newPaziente();
@@ -1261,7 +1265,7 @@ function editEscl(p){
 const toDate=s=>{const p=String(s).split("/");const d=new Date(+p[2],+p[1]-1,+p[0]);return isNaN(d)?null:d};
 const addDays=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
 const monday=d=>addDays(d,-((d.getDay()+6)%7));
-const dviewSeg=()=>`<div class="seg" style="margin-bottom:10px">${[["giorno","Giorno"],["sett","Settimana"]].map(([k,l])=>`<button data-dv="${k}" aria-pressed="${(state.dview||"giorno")===k}">${l}</button>`).join("")}</div>`;
+const dviewSeg=()=>`<div class="seg" data-dvseg style="margin-bottom:10px">${[["giorno","Giorno"],["sett","Settimana"]].map(([k,l])=>`<button data-dv="${k}" aria-pressed="${(state.dview||"giorno")===k}">${l}</button>`).join("")}</div>`;
 /* i 7 giorni (lun–dom) della settimana del giorno aperto: [{data, i (indice in p.giorni o -1)}] */
 function weekDays(p){const d0=p.giorni[state.day],base=toDate(state.week||(d0&&d0.data)||today())||new Date();const m=monday(base);
   return[...Array(7)].map((_,k)=>{const data=dstr(addDays(m,k));return{data,i:p.giorni.findIndex(g=>g.data===data)}})}
@@ -1572,7 +1576,7 @@ const stFull=s=>s.giorni.filter(d=>dayVoci(d).length);
 const stAvg=s=>larnAvg(stFull(s));
 const stCtx=s=>[s.sesso,s.eta?s.eta+" anni":"",s.peso?fmt(s.peso,1)+"kg":""].filter(Boolean).join(" · ");
 function stPseudo(s){const n=new Date();return{sesso:s.sesso,data_nascita:s.eta?dstr(new Date(n.getFullYear()-s.eta,n.getMonth(),n.getDate())):"",visite:s.peso?[{data:today(),peso:s.peso}]:[],larnCond:s.larnCond,giorni:s.giorni}}
-function openStima(s){if(!state.stima)history.pushState({st:1},"");state.stima=s;stDay=0;render();$("#view").scrollTop=0}
+function openStima(s){const fresh=!state.stima;if(fresh)history.pushState({st:1},"");state.stima=s;stDay=0;render();$("#view").scrollTop=0;if(fresh)enterAnim()}
 
 function viewStime(){
   if(state.stima)return viewStima();
@@ -1697,6 +1701,82 @@ function stMenu(s){
      if(a==="dup"){const c={...clean(s),id:uid(),nome:s.nome+" (copia)",data:today()};saveStima(c);state.stima=c;stDay=0;render();toast("Stima duplicata")}
      if(a==="del")confirmSheet(`Eliminare ${s.nome}?`,"La stima viene rimossa da questo dispositivo.","Elimina",()=>{state.kv.stime=stList().filter(x=>x!==s);saveKV("stime");history.back();toast("Stima eliminata")})}});
 }
+
+/* ═════════ gesti: scorrimento tra schede, giorni e indietro ═════════ */
+const RMOT=matchMedia("(prefers-reduced-motion: reduce)");
+const TAB_ORDER=["pazienti","stime","alimenti","modelli","dati"],PT_ORDER=["dieta","prescr","visite"];
+let lastEdge=null;      // lato del bordo toccato per ultimo (gesto indietro di sistema su Android)
+let pendingGhost=null;  // pagina "staccata" da far uscire al prossimo ritorno
+function makeGhost(x0){
+  const bar=$("#bar"),view=$("#view"),rb=bar.getBoundingClientRect(),rv=view.getBoundingClientRect();
+  const g=document.createElement("div");g.className="ghost";
+  Object.assign(g.style,{left:rv.left+"px",top:rb.top+"px",width:rv.width+"px",height:(rv.bottom-rb.top)+"px",transform:`translateX(${x0||0}px)`});
+  const cb=bar.cloneNode(true),cv=view.cloneNode(true);
+  [cb,cv].forEach(c=>{c.removeAttribute("id");c.querySelectorAll("[id]").forEach(e=>e.removeAttribute("id"))});
+  cv.style.height=rv.height+"px";cv.style.overflow="hidden";g.append(cb,cv);document.body.appendChild(g);cv.scrollTop=view.scrollTop;return g}
+function ghostOut(g,dir){
+  if(RMOT.matches){g.remove();return}
+  requestAnimationFrame(()=>{g.style.transition="transform .26s cubic-bezier(.3,.7,.4,1)";g.style.transform=`translateX(${dir*110}%)`;
+    setTimeout(()=>g.remove(),320)})}
+function backDir(){const e=lastEdge;lastEdge=null;if(e&&Date.now()-e.t<1500)return e.side==="r"?-1:1;return 1}
+function slideIn(els,dir,dist){
+  if(RMOT.matches)return;els=els.filter(Boolean);
+  els.forEach(e=>{e.style.transition="none";e.style.transform=`translateX(${dir*(dist||100)}%)`;if(dist)e.style.opacity="0"});
+  requestAnimationFrame(()=>requestAnimationFrame(()=>els.forEach(e=>{e.style.transition="transform .26s cubic-bezier(.3,.7,.4,1),opacity .2s";e.style.transform="";e.style.opacity="";
+    setTimeout(()=>{e.style.transition=""},300)})))}
+/* uscita da paziente/stima: chiamata da popstate prima di disegnare l'elenco */
+function leaveAnim(){const g=pendingGhost||makeGhost(0),dir=pendingGhost?pendingGhost._dir:backDir();pendingGhost=null;return()=>ghostOut(g,dir)}
+/* ingresso in paziente/stima: la pagina entra da destra sopra l'elenco */
+function enterAnim(){slideIn([$("#bar"),$("#view")],1)}
+
+(function(){
+  const view=$("#view");let G=null;
+  const hScroll=el=>{for(;el&&el!==view;el=el.parentElement){if(el.scrollWidth>el.clientWidth+2){const o=getComputedStyle(el).overflowX;if(o==="auto"||o==="scroll")return true}}return false};
+  const moveEls=els=>(dx)=>els.forEach(e=>{if(e){e.style.transition="none";e.style.transform=dx?`translateX(${dx}px)`:""}});
+  const snap=els=>els.forEach(e=>{if(!e)return;e.style.transition="transform .2s ease-out";e.style.transform="";setTimeout(()=>{e.style.transition=""},220)});
+  document.addEventListener("pointerdown",e=>{
+    const W0=innerWidth;if(e.clientX<28)lastEdge={side:"l",t:Date.now()};else if(e.clientX>W0-28)lastEdge={side:"r",t:Date.now()};
+    G=null;if(e.pointerType==="mouse"||!e.isPrimary||!view.contains(e.target)||document.querySelector(".scrim,.dpk,.ghost"))return;
+    const t=e.target,inner=state.paz||state.stima;
+    let mode=null,els=[];
+    if(inner&&(e.clientX<28||e.clientX>W0-28)){mode="edge";els=[$("#bar"),view]}
+    else if(t.closest("input,textarea,select,.dinp")||hScroll(t))return;
+    else if(inner&&t.closest(".daygrid,.esclbar")&&(state.stima||(state.ptab==="dieta"&&state.dview!=="sett"))){mode="day";els=[...view.querySelectorAll(".daygrid,.esclbar")]}
+    else if(state.paz&&(state.ptab!=="dieta"||t.closest(".seg:not([data-dvseg]),.lockbar")))mode="ptab";
+    else if(!inner)mode="tab";
+    if(!mode)return;
+    G={mode,els,x0:e.clientX,y0:e.clientY,t0:Date.now(),id:e.pointerId,lock:null,dx:0,move:moveEls(els)};
+  },true);
+  document.addEventListener("pointermove",e=>{if(!G||e.pointerId!==G.id)return;
+    const dx=e.clientX-G.x0,dy=e.clientY-G.y0;
+    if(!G.lock){if(Math.abs(dy)>14&&Math.abs(dy)>Math.abs(dx)){G=null;return}if(Math.abs(dx)>16&&Math.abs(dx)>1.6*Math.abs(dy))G.lock="h";else return}
+    G.dx=dx;
+    if(G.mode==="edge"){G.move(G.x0<innerWidth/2?Math.max(0,dx):Math.min(0,dx))}
+    else if(G.mode==="day"){const n=dayCount(),i=dayIdx(),edge=(dx>0&&i<=0)||(dx<0&&i>=n-1);G.move(edge?dx*.25:dx)}
+  },true);
+  const end=e=>{if(!G||e.pointerId!==G.id)return;const g=G;G=null;
+    if(e.type==="pointercancel"||!g.lock){snap(g.els);return}
+    const dx=g.dx,v=Math.abs(dx)/Math.max(1,Date.now()-g.t0),W0=view.clientWidth;
+    if(g.mode==="edge"){const ok=(g.x0<innerWidth/2?dx:-dx)>W0*.33||(Math.abs(dx)>60&&v>.6);
+      if(!ok)return snap(g.els);
+      g.els.forEach(x=>{x.style.transition="none";x.style.transform=""});pendingGhost=makeGhost(dx);pendingGhost._dir=dx>0?1:-1;history.back();return}
+    if(g.mode==="day"){const n=dayCount(),i=dayIdx(),j=i+(dx<0?1:-1);
+      const ok=(Math.abs(dx)>W0*.28||(Math.abs(dx)>60&&v>.5))&&j>=0&&j<n;
+      if(!ok)return snap(g.els);
+      const dir=dx<0?-1:1;
+      if(RMOT.matches){setDay(j);return}
+      g.els.forEach(x=>{x.style.transition="transform .16s ease-in";x.style.transform=`translateX(${dir*W0}px)`});
+      setTimeout(()=>{setDay(j);slideIn([...view.querySelectorAll(".daygrid,.esclbar")],-dir)},150);return}
+    if(Math.abs(dx)<90||Math.abs(dx)<2.2*Math.abs(e.clientY-g.y0))return;
+    const step=dx<0?1:-1;
+    if(g.mode==="tab"){const i=TAB_ORDER.indexOf(state.tab),j=i+step;if(i<0||j<0||j>=TAB_ORDER.length)return;state.tab=TAB_ORDER[j];render();view.scrollTop=0;slideIn([view],step,30)}
+    if(g.mode==="ptab"){const i=PT_ORDER.indexOf(state.ptab),j=i+step;if(j<0||j>=PT_ORDER.length)return;state.ptab=PT_ORDER[j];render();view.scrollTop=0;slideIn([view],step,30)}
+  };
+  document.addEventListener("pointerup",end,true);document.addEventListener("pointercancel",end,true);
+  function dayCount(){return state.stima?state.stima.giorni.length+(state.stima.giorni.length>1?1:0):state.paz.giorni.length}
+  function dayIdx(){return state.stima?stDay:state.day}
+  function setDay(j){if(state.stima)stDay=j;else state.day=j;rerender()}
+})();
 
 /* ═════════ alternative standard ═════════ */
 /* Gruppi di alimenti intercambiabili (es. "Pane e sostituti"): quando uno di questi alimenti entra in un pasto,
@@ -2024,7 +2104,7 @@ function viewDati(){
    <div class="actions"><button class="btn" id="bk">Crea backup</button><button class="btn" id="rs">Ripristina</button></div></div>
   <div class="card"><h3>Archivio</h3><p class="num">${state.pazienti.length} pazienti · ${FOODS.length} alimenti (${DB.foods.filter(f=>f.o==="s").length} CREA/INRAN, ${DB.foods.filter(f=>f.o==="p").length} personali, ${FOODS.filter(f=>f.o==="r").length} ricette${nU?`, ${nU} aggiunti su questo dispositivo`:""}) · ${state.kv.presets.length} preset · ${state.kv.modelli.length} giornate tipo · ${state.kv.pasti.length} pasti salvati</p>
    <p style="margin:0">I dati restano solo su questo dispositivo${state.persist?"":". <b class=\"over\">Archivio non disponibile in questa sessione.</b>"}</p></div>
-  <div class="note">NutriDesk 0.12 · valori nutrizionali per 100g di parte edibile</div>`);
+  <div class="note">NutriDesk 0.12.1 · valori nutrizionali per 100g di parte edibile</div>`);
   $("#view").querySelectorAll("[data-tm]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),mode:b.dataset.tm});rerender()});
   $("#view").querySelectorAll("[data-tc]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),color:b.dataset.tc});rerender()});
   const sb=$("#syset");if(sb)sb.onclick=syncSetup;const sn=$("#synow");if(sn)sn.onclick=()=>{toast("Sincronizzazione…");syncNow().then(()=>{rerender();toast(SY.status==="err"?"Sincronizzazione non riuscita: "+SY.err:"Sincronizzato")})};const so=$("#syoff");if(so)so.onclick=syncDisconnect;
@@ -2413,7 +2493,7 @@ document.addEventListener("click",e=>{if(e.target.closest(".sheetx")){e.stopProp
     if(dy>90||(dy>30&&v>.5)){sh.style.transition="transform .15s ease-in";sh.style.transform="translateY(100%)";setTimeout(()=>{const sc=sh.closest(".scrim");if(sc){sc.remove();if(!document.querySelector(".scrim")&&SY.pendingRender){SY.pendingRender=false;setTimeout(rerender,0)}}},140)}
     else{sh.style.transition="transform .15s ease-out";sh.style.transform=""}};
   document.addEventListener("pointerup",end);document.addEventListener("pointercancel",end)})();
-window.addEventListener("popstate",()=>{if(document.querySelector(".scrim")){closeSheet();if(state.paz||state.stima)history.pushState({paz:1},"");return}if(state.paz){const old=state.paz;state.paz=null;releasePaz(old);render()}else{state.stima=null;render()}});
+window.addEventListener("popstate",()=>{if(document.querySelector(".scrim")){closeSheet();if(state.paz||state.stima)history.pushState({paz:1},"");return}if(state.paz||state.stima){const fin=leaveAnim();if(state.paz){const old=state.paz;state.paz=null;releasePaz(old)}state.stima=null;render();fin()}else render()});
 window.addEventListener("resize",()=>{$("#tabs").hidden=!!(state.paz||state.stima)&&!wide()});
 WIDE_MQ.addEventListener&&WIDE_MQ.addEventListener("change",()=>rerender());
 
