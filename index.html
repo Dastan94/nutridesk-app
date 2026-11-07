@@ -277,6 +277,23 @@ svg.chart text{fill:var(--ink-3);font-size:11px;font-family:var(--font)}
 .lpc{font-size:12px;font-weight:650;min-width:38px;text-align:right}
 .lpc.ok{color:var(--ok)}.lpc.near{color:var(--l)}.lpc.low,.lpc.high{color:var(--warn)}
 @media (max-width:560px){.lrow{grid-template-columns:minmax(0,1fr) auto}.lm{grid-column:1/-1}.lm:empty{display:none}}
+.dinp{position:relative;display:block}.dinp input{padding-right:42px!important}
+.dcal{position:absolute;right:3px;top:50%;transform:translateY(-50%);width:40px;height:40px;border:0;background:none;color:var(--ink-2);display:grid;place-items:center;border-radius:10px;cursor:pointer}
+.dcal:hover{background:var(--sunken)}
+@media (max-width:560px){.grid3>.field:has(.dinp){grid-column:1/-1}}
+.dpk{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px}
+.dpk-c{background:var(--bg);border-radius:18px;padding:14px;width:100%;max-width:370px;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+.dpk-h{display:flex;align-items:center;gap:4px;margin-bottom:8px}
+.dpk-h button{width:30px;height:40px;flex:none;border:0;background:var(--sunken);border-radius:10px;font-size:18px;font-weight:700;color:var(--ink);cursor:pointer}
+.dpk-h select{flex:1;min-width:0;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface);padding:0 2px;font-weight:600;font-size:15px}
+#dpm{flex:1.6}
+.dpk-w,.dpk-g{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}
+.dpk-w span{font-size:11px;color:var(--ink-3);font-weight:700;padding:4px 0}
+.dpk-g button{height:40px;border:0;background:none;border-radius:10px;font-size:15px;color:var(--ink);cursor:pointer;font-variant-numeric:tabular-nums}
+.dpk-g button:hover{background:var(--sunken)}
+.dpk-g button.tod{box-shadow:inset 0 0 0 1.5px var(--accent)}
+.dpk-g button.sel{background:var(--accent);color:#fff;font-weight:700}
+.dpk-f{display:flex;gap:8px;margin-top:10px}.dpk-f .btn{flex:1}
 .sheet{position:relative;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .sheet>.menu,.sheet>.field,.sheet>.actions,.sheet>h2,.sheet>p{flex:none}
 .grabzone{flex:none;height:36px;margin:-8px -16px -4px;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:grab}
@@ -343,6 +360,7 @@ svg.chart text{fill:var(--ink-3);font-size:11px;font-family:var(--font)}
   <main id="view"></main>
   <nav class="tabs" id="tabs">
     <button data-tab="pazienti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-7 7-7s7 3 7 7"/><path d="M17 11a3 3 0 1 0 0-6M22 21c0-3-2-5.5-5-6"/></svg>Pazienti</button>
+    <button data-tab="stime"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2.5" width="14" height="19" rx="2"/><path d="M8.5 6.5h7M8.5 11h.01M12 11h.01M15.5 11h.01M8.5 14.5h.01M12 14.5h.01M15.5 14.5v3M8.5 18h.01M12 18h.01"/></svg>Stima</button>
     <button data-tab="alimenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c-4 0-7-3-7-8 0-4 3-6 5-6 1 0 1.5.5 2 .5s1-.5 2-.5c2 0 5 2 5 6 0 5-3 8-7 8z"/><path d="M12 7c0-2 1-4 3-4"/></svg>Alimenti</button>
     <button data-tab="modelli"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Modelli</button>
     <button data-tab="dati"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Dati</button>
@@ -531,8 +549,8 @@ const store=(()=>{let dbp=null;
  async function tx(s,mode,fn){const d=await open();return new Promise((res,rej)=>{const t=d.transaction(s,mode);const o=t.objectStore(s);const out=fn(o);t.oncomplete=()=>res(out&&out.result!==undefined?out.result:undefined);t.onerror=()=>rej(t.error)})}
  return{all:s=>tx(s,"readonly",o=>o.getAll()),put:(s,v,k)=>tx(s,"readwrite",o=>k===undefined?o.put(v):o.put(v,k)),del:(s,k)=>tx(s,"readwrite",o=>o.delete(k)),get:(s,k)=>tx(s,"readonly",o=>o.get(k))};
 })();
-const state={pazienti:[],userFoods:[],kv:{presets:null,modelli:[],pasti:[],porzioni:{},opt:{step:5},alt:null},tab:"pazienti",paz:null,ptab:"dieta",day:0,persist:true};
-const KV_KEYS=["presets","modelli","pasti","porzioni","opt","alt"];
+const state={pazienti:[],userFoods:[],kv:{presets:null,modelli:[],pasti:[],porzioni:{},opt:{step:5},alt:null,stime:[]},tab:"pazienti",paz:null,stima:null,ptab:"dieta",day:0,persist:true};
+const KV_KEYS=["presets","modelli","pasti","porzioni","opt","alt","stime"];
 const clean=o=>JSON.parse(JSON.stringify(o,(k,v)=>k.startsWith("_")?undefined:v));
 async function load(){
   try{state.pazienti=await store.all("pazienti");state.userFoods=await store.all("alimenti");
@@ -652,13 +670,13 @@ applyTheme();
 const $=s=>document.querySelector(s);
 const WIDE_MQ=matchMedia("(min-width:900px), (orientation:landscape) and (max-height:540px) and (min-width:640px)");const wide=()=>WIDE_MQ.matches;
 const setBar=h=>{$("#bar").innerHTML=h};
-document.getElementById("tabs").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b)return;const was=!!state.paz;if(was)releasePaz(state.paz);state.paz=null;state.tab=b.dataset.tab;if(was)history.back();else render()});
+document.getElementById("tabs").addEventListener("click",e=>{const b=e.target.closest("button[data-tab]");if(!b)return;const was=!!(state.paz||state.stima);if(state.paz)releasePaz(state.paz);state.paz=null;state.stima=null;state.tab=b.dataset.tab;if(was)history.back();else render()});
 function render(){
   document.querySelectorAll("#tabs button").forEach(b=>b.setAttribute("aria-current",String(b.dataset.tab===state.tab&&!state.paz)));
-  $("#tabs").hidden=!!state.paz&&!wide();
+  $("#tabs").hidden=!!(state.paz||state.stima)&&!wide();
   document.querySelectorAll(".fab").forEach(x=>x.remove());
   const st=$("#view").scrollTop;
-  if(state.paz)viewPaziente();else({pazienti:viewPazienti,alimenti:viewAlimenti,modelli:viewModelli,dati:viewDati})[state.tab]();
+  if(state.paz)viewPaziente();else({pazienti:viewPazienti,stime:viewStime,alimenti:viewAlimenti,modelli:viewModelli,dati:viewDati})[state.tab]();
   if(render.keep){$("#view").scrollTop=st;render.keep=false}
 }
 const rerender=()=>{render.keep=true;render()};
@@ -688,12 +706,12 @@ function editAnagrafica(p){
   const isNew=!p;p=p||newPaziente();
   sheet(`<h2>${isNew?"Nuovo paziente":"Dati anagrafici"}</h2><form id="pf" class="scroll">
    <div class="field"><label for="pn">Nome e cognome</label><input id="pn" required value="${esc(p.nome)}" autocomplete="off"></div>
-   <div class="grid3"><div class="field"><label for="pd">Data di nascita</label><input id="pd" placeholder="gg/mm/aaaa" inputmode="numeric" value="${esc(p.data_nascita)}"></div>
-   <div class="field"><label for="ps">Sesso</label><select id="ps"><option value="F"${p.sesso==="F"?" selected":""}>F</option><option value="M"${p.sesso==="M"?" selected":""}>M</option></select></div>
-   <div class="field"><label for="ph">Altezza (cm)</label><input id="ph" inputmode="decimal" value="${p.altezza??""}"></div></div>
-   <div class="grid3"><div class="field"><label for="pt">Telefono</label><input id="pt" inputmode="tel" value="${esc(p.telefono)}"></div>
-   <div class="field"><label for="pe">Email</label><input id="pe" inputmode="email" value="${esc(p.email)}"></div>
+   <div class="grid2"><div class="field"><label for="pd">Data di nascita</label><input id="pd" placeholder="gg/mm/aaaa" inputmode="numeric" value="${esc(p.data_nascita)}"></div>
+   <div class="field"><label for="ps">Sesso</label><select id="ps"><option value="F"${p.sesso==="F"?" selected":""}>F</option><option value="M"${p.sesso==="M"?" selected":""}>M</option></select></div></div>
+   <div class="grid2"><div class="field"><label for="ph">Altezza (cm)</label><input id="ph" inputmode="decimal" value="${p.altezza??""}"></div>
    <div class="field"><label for="po">Peso obiettivo</label><input id="po" value="${esc(p.peso_obiettivo)}" placeholder="Es. 75kg"></div></div>
+   <div class="grid2"><div class="field"><label for="pt">Telefono</label><input id="pt" inputmode="tel" value="${esc(p.telefono)}"></div>
+   <div class="field"><label for="pe">Email</label><input id="pe" inputmode="email" value="${esc(p.email)}"></div></div>
    <div class="field"><label for="pno">Note cliniche</label><textarea id="pno">${esc(p.note)}</textarea></div>
    <div class="actions"><button type="button" class="btn" data-close>Annulla</button><button class="btn primary">Salva</button></div></form>`,s=>{
    s.querySelector("#pf").onsubmit=async e=>{e.preventDefault();const n=s.querySelector("#pn").value.trim();if(!n)return;
@@ -949,7 +967,7 @@ function prescrHTML(p){
   return `<div class="card"><div class="head"><h3>Prescrizioni</h3><button class="btn small" id="prnew">Nuova prescrizione</button></div>
    <div class="pills" style="margin-top:0">${p.prescrizioni.map(x=>`<button class="pill" data-prs="${x.id}" aria-pressed="${x===r}">${esc(x.nome)}${x===cur&&p.prescrizioni.length>1?" · in corso":""}</button>`).join("")}</div>
    <div class="grid2" style="margin-top:10px"><div class="field"><label for="prnm">Nome</label><input id="prnm" value="${esc(r.nome)}" placeholder="Es. Fase 2, Giorno ON"></div>
-   <div class="field"><label for="prdal">In vigore dal</label><input id="prdal" value="${esc(r.dal)}" placeholder="Vuoto = dall'inizio" inputmode="numeric"></div></div>
+   <div class="field"><label for="prdal">In vigore dal</label><input id="prdal" value="${esc(r.dal)}" placeholder="Vuoto = dall'inizio" inputmode="numeric" data-date></div></div>
    <p class="note" style="margin:0">${nDays} ${nDays===1?"giorno usa":"giorni usano"} questa prescrizione. I giorni la prendono in automatico in base alla data; per giornate ON/OFF crea due prescrizioni e assegnale ai giorni dal menu ⋮ del giorno.</p>
    ${p.prescrizioni.length>1?`<button class="linkbtn" id="prdel" style="color:var(--warn)">Elimina questa prescrizione</button>`:""}</div>
   <div class="card"><div class="head"><h3>Preset</h3><button class="btn small" id="pre">Applica preset</button><button class="btn small" id="psave">Salva come preset</button></div><p style="margin:0">Carica obiettivi e suddivisione già pronti, oppure salva questi come nuovo preset.</p></div>
@@ -1081,7 +1099,7 @@ function editVisita(p,v){
   const F=(id,l,val,u)=>`<div class="field"><label for="${id}">${l}${u?` (${u})`:""}</label><input id="${id}" inputmode="decimal" value="${val??""}"></div>`;
   const b=v.bia||{},pl=v.pliche||{};
   sheet(`<h2>${isNew?"Nuova visita":"Visita del "+esc(v.data)}</h2><form id="vf" class="scroll">
-   <div class="grid3"><div class="field"><label for="vd">Data</label><input id="vd" value="${esc(v.data)}" inputmode="numeric"></div>${F("vp","Peso",v.peso,"kg")}${F("vh","Altezza",v.altezza,"cm")}</div>
+   <div class="grid3"><div class="field"><label for="vd">Data</label><input id="vd" value="${esc(v.data)}" inputmode="numeric" placeholder="gg/mm/aaaa"></div>${F("vp","Peso",v.peso,"kg")}${F("vh","Altezza",v.altezza,"cm")}</div>
    <div class="label" style="margin:2px 0 8px">Circonferenze</div>
    <div class="grid3">${F("vv","Vita",v.vita,"cm")}${F("vfi","Fianchi",v.fianchi,"cm")}${F("vb","Braccio",v.braccio,"cm")}${F("vco","Coscia",v.coscia,"cm")}${F("vpo","Polpaccio",v.polpaccio,"cm")}${F("vpl","Polso",v.polso,"cm")}</div>
    <div class="label" style="margin:2px 0 8px">Bioimpedenza</div>
@@ -1498,6 +1516,188 @@ function refertoSheet(p){const V=(p.visite||[]).slice().sort((a,b)=>dkey(b.data)
    draw();s.querySelector("#rgo").onclick=()=>doPrint(html(),false,`Referto ${p.nome} ${v.data}`)},true);
 }
 
+/* ═════════ campi data: barre automatiche e calendario ═════════ */
+const DSEL='input[placeholder="gg/mm/aaaa"],input[data-date]';
+const MESI=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
+document.addEventListener("input",e=>{const el=e.target;if(!el.matches||!el.matches(DSEL))return;
+  if(e.inputType&&e.inputType.startsWith("delete"))return;
+  const v=el.value.replace(/^(\d)\//,"0$1/").replace(/^(\d{2})\/(\d)\//,"$1/0$2/");
+  const d=v.replace(/\D/g,"").slice(0,8);if(!d)return;
+  let o=d.slice(0,2);if(d.length>=2)o+="/"+d.slice(2,4);if(d.length>=4)o+="/"+d.slice(4);
+  if(o!==el.value)el.value=o},true);
+document.addEventListener("change",e=>{const el=e.target;if(!el.matches||!el.matches(DSEL))return;
+  const m=el.value.match(/^(\d{2})\/(\d{2})\/(\d{2})$/);if(m){const yy=+m[3],cur=new Date().getFullYear()%100;el.value=`${m[1]}/${m[2]}/${(yy>cur+1?1900:2000)+yy}`}},true);
+function decorateDates(root){(root.querySelectorAll?root:document).querySelectorAll(DSEL).forEach(inp=>{if(inp.dataset.cal)return;inp.dataset.cal=1;
+  const w=document.createElement("span");w.className="dinp";inp.parentNode.insertBefore(w,inp);w.appendChild(inp);
+  const b=document.createElement("button");b.type="button";b.className="dcal";b.setAttribute("aria-label","Scegli dal calendario");
+  b.innerHTML='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>';
+  b.onclick=()=>datePop(inp);w.appendChild(b)})}
+new MutationObserver(ms=>{for(const m of ms)for(const n of m.addedNodes)if(n.nodeType===1)decorateDates(n)}).observe(document.body,{childList:true,subtree:true});
+function datePop(inp){
+  const now=new Date(),sel=DRE.test(inp.value)?inp.value.split("/").map(Number):null;
+  const birth=inp.id==="pd";
+  let y=sel?sel[2]:birth?now.getFullYear()-40:now.getFullYear(),m=sel?sel[1]-1:birth?0:now.getMonth();
+  const o=document.createElement("div");o.className="dpk";o.setAttribute("role","dialog");o.setAttribute("aria-label","Calendario");
+  const y0=now.getFullYear()-110,y1=now.getFullYear()+5;
+  const draw=()=>{if(y<y0){y=y0;m=0}if(y>y1){y=y1;m=11}
+    const first=new Date(y,m,1),off=(first.getDay()+6)%7,n=new Date(y,m+1,0).getDate();let cells="";
+    for(let i=0;i<off;i++)cells+="<span></span>";
+    for(let d=1;d<=n;d++){const isSel=sel&&sel[0]===d&&sel[1]===m+1&&sel[2]===y,isT=now.getDate()===d&&now.getMonth()===m&&now.getFullYear()===y;
+      cells+=`<button type="button" data-d="${d}" class="${isSel?"sel":""}${isT?" tod":""}">${d}</button>`}
+    o.innerHTML=`<div class="dpk-c"><div class="dpk-h">
+      <button type="button" data-y="-1" aria-label="Anno precedente">«</button><button type="button" data-m="-1" aria-label="Mese precedente">‹</button>
+      <select id="dpm" aria-label="Mese">${MESI.map((x,i)=>`<option value="${i}"${i===m?" selected":""}>${x}</option>`).join("")}</select>
+      <select id="dpy" aria-label="Anno">${Array.from({length:y1-y0+1},(_,i)=>y1-i).map(v=>`<option${v===y?" selected":""}>${v}</option>`).join("")}</select>
+      <button type="button" data-m="1" aria-label="Mese successivo">›</button><button type="button" data-y="1" aria-label="Anno successivo">»</button></div>
+      <div class="dpk-w">${["L","M","M","G","V","S","D"].map(x=>`<span>${x}</span>`).join("")}</div><div class="dpk-g">${cells}</div>
+      <div class="dpk-f"><button type="button" class="btn" data-x="today">Oggi</button><button type="button" class="btn" data-x="close">Annulla</button></div></div>`;
+    o.querySelector("#dpm").onchange=e=>{m=+e.target.value;draw()};o.querySelector("#dpy").onchange=e=>{y=+e.target.value;draw()}};
+  const pick=dt=>{inp.value=dstr(dt);o.remove();inp.dispatchEvent(new Event("input",{bubbles:true}));inp.dispatchEvent(new Event("change",{bubbles:true}))};
+  o.onclick=e=>{if(e.target===o)return o.remove();const b=e.target.closest("button");if(!b)return;
+    if(b.dataset.d)return pick(new Date(y,m,+b.dataset.d));
+    if(b.dataset.m){m+=+b.dataset.m;if(m<0){m=11;y--}if(m>11){m=0;y++}return draw()}
+    if(b.dataset.y){y+=+b.dataset.y;return draw()}
+    if(b.dataset.x==="today")return pick(now);if(b.dataset.x==="close")o.remove()};
+  draw();document.body.appendChild(o);
+}
+
+/* ═════════ stima degli apporti (senza scheda paziente) ═════════ */
+const STIMA_PASTI=["Colazione","Spuntino","Pranzo","Merenda","Cena"];
+let stDay=0;
+const stList=()=>state.kv.stime||(state.kv.stime=[]);
+const stEmptyDay=i=>({titolo:"Giorno "+i,pasti:STIMA_PASTI.map(n=>({nome:n,voci:[]}))});
+function newStima(){return{id:uid(),nome:"Stima del "+today(),data:today(),sesso:"",eta:null,peso:null,note:"",giorni:[stEmptyDay(1)],updated:Date.now()}}
+function saveStima(s){s.updated=Date.now();const L=stList();if(!L.includes(s))L.unshift(s);saveKV("stime")}
+const stFull=s=>s.giorni.filter(d=>dayVoci(d).length);
+const stAvg=s=>larnAvg(stFull(s));
+const stCtx=s=>[s.sesso,s.eta?s.eta+" anni":"",s.peso?fmt(s.peso,1)+"kg":""].filter(Boolean).join(" · ");
+function stPseudo(s){const n=new Date();return{sesso:s.sesso,data_nascita:s.eta?dstr(new Date(n.getFullYear()-s.eta,n.getMonth(),n.getDate())):"",visite:s.peso?[{data:today(),peso:s.peso}]:[],larnCond:s.larnCond,giorni:s.giorni}}
+function openStima(s){if(!state.stima)history.pushState({st:1},"");state.stima=s;stDay=0;render();$("#view").scrollTop=0}
+
+function viewStime(){
+  if(state.stima)return viewStima();
+  setBar(`<h1>Stima apporti<span class="sub">Calcolo rapido, senza scheda paziente</span></h1>`);
+  const L=stList().slice().sort((a,b)=>(b.updated||0)-(a.updated||0));
+  $("#view").innerHTML=W(`<p class="note" style="margin-top:0">Inserisci alimenti e grammi di un richiamo delle 24 ore o di un diario di più giorni: kcal, macronutrienti, micronutrienti e confronto LARN. Sesso, età e peso sono facoltativi.</p>
+   <div class="list grid" id="slist">${L.map(s=>{const n=stFull(s).length;return `<button class="row" data-id="${s.id}"><span class="main"><span class="t">${esc(s.nome)}</span><span class="s">${esc([s.data,n>1?n+" giorni, media":"",stCtx(s)].filter(Boolean).join(" · "))}</span></span><span class="k num">${fmt(stAvg(s).KCAL)}kcal</span></button>`}).join("")||`<div class="empty"><b>Nessuna stima</b>Crea una stima con il pulsante +.</div>`}</div>`);
+  $("#slist").onclick=e=>{const b=e.target.closest("[data-id]");if(b)openStima(stList().find(s=>s.id===b.dataset.id))};
+  fab("Stima",()=>{const s=newStima();saveStima(s);openStima(s)});
+}
+
+function viewStima(){
+  const s=state.stima,nd=s.giorni.length,multi=nd>1;if(stDay>nd||(!multi&&stDay>0))stDay=0;
+  const media=multi&&stDay===nd,d=media?null:s.giorni[stDay];
+  setBar(`<button class="iconbtn" id="bk" aria-label="Indietro">${I.back}</button><h1 id="snm" role="button" tabindex="0" style="cursor:pointer" title="Dati della stima">${esc(s.nome)}<span class="sub">${esc(stCtx(s)||"Stima apporti · tocca per sesso, età e peso")}</span></h1><button class="iconbtn" id="sm" aria-label="Opzioni stima">${I.more}</button>`);
+  const T=media?stAvg(s):totals(dayVoci(d)),nf=stFull(s).length;
+  const pc=(g,k)=>T.KCAL>0?Math.round(g*k/T.KCAL*100):0;
+  const mac=(col,l,colr,kc,e)=>{const w=kc?pc(T[col],kc):Math.min(100,T[col]/25*100);return `<div class="mac"><div class="n"><span>${l}</span>${kc?`<span>${pc(T[col],kc)}%</span>`:""}</div><div class="v num">${fmt(T[col])}g</div><div class="tr"><i style="width:${Math.min(100,w)}%;background:var(${colr})"></i></div><div class="e num">${e}</div></div>`};
+  const pkg=s.peso?`${fmt(T.PROTEINE/s.peso,2)}g/kg`:"% kcal";
+  const days=`<div class="pills" id="sdays" style="margin:0 0 12px">${s.giorni.map((g,i)=>`<button class="pill" data-d="${i}" aria-pressed="${i===stDay}">${esc(g.titolo)}</button>`).join("")}${multi?`<button class="pill" data-d="${nd}" aria-pressed="${media}">Media${nf?` (${nf})`:""}</button>`:""}<button class="pill" id="sadd">+ Giorno</button></div>`;
+  const summ=`<section class="summary">
+    <div class="kcalline"><span class="big num">${fmt(T.KCAL)}</span><span class="of num">kcal${media?` · media di ${nf} ${nf===1?"giorno":"giorni"} compilati`:""}${s.peso&&T.KCAL?` · ${fmt(T.KCAL/s.peso)}kcal/kg`:""}</span></div>
+    <div class="macros" style="margin-top:10px">${mac("PROTEINE","Prot.","--p",4,pkg)}${mac("LIPIDI","Lipidi","--l",9,"% kcal")}${mac("GLUCIDI","Gluc.","--g",3.75,"% kcal")}${mac("FIBRA","Fibra","--f",0,"rif. 25g")}</div>
+    <div class="note num">zuccheri solubili ${fmt(T.GLUC_SOL)}g (${pc(T.GLUC_SOL,3.75)}% kcal) · saturi ${fmt(T.AC_SATURI_T)}g (${pc(T.AC_SATURI_T,9)}% kcal) · sodio ${fmt(T.SODIO)}mg · colesterolo ${fmt(T.COLESTER)}mg${T.ALCOL?` · alcol ${fmt(T.ALCOL)}g`:""}</div>
+    <details class="more"><summary>Tutti i nutrienti${media?" (media)":""}</summary>${nutrTable(T)}</details>
+    ${stLarnChip(s,T,media?stFull(s):[d])}</section>`;
+  let right;
+  if(media){const rows=s.giorni.map(g=>{const t=totals(dayVoci(g));return `<tr><td>${esc(g.titolo)}${dayVoci(g).length?"":" <small>(vuoto, escluso)</small>"}</td><td>${fmt(t.KCAL)}</td><td>${fmt(t.PROTEINE)}</td><td>${fmt(t.LIPIDI)}</td><td>${fmt(t.GLUCIDI)}</td><td>${fmt(t.FIBRA)}</td></tr>`}).join("");
+    right=`<section class="meal"><div class="meal-h"><h3>Giorni a confronto</h3></div><div class="dwrap"><table class="dtab"><thead><tr><th>Giorno</th><th>Energia<small>kcal</small></th><th>Prot.<small>g</small></th><th>Lipidi<small>g</small></th><th>Gluc.<small>g</small></th><th>Fibra<small>g</small></th></tr></thead><tbody>${rows}<tr class="tot"><td>Media</td><td>${fmt(T.KCAL)}</td><td>${fmt(T.PROTEINE)}</td><td>${fmt(T.LIPIDI)}</td><td>${fmt(T.GLUCIDI)}</td><td>${fmt(T.FIBRA)}</td></tr></tbody></table></div></section>`}
+  else right=d.pasti.map((m,mi)=>{const t=totals(m.voci);return `<section class="meal">
+      <div class="meal-h"><h3>${esc(m.nome)}</h3><span class="k num">${fmt(t.KCAL)}kcal</span><button class="iconbtn" data-mm="${mi}" aria-label="Opzioni ${esc(m.nome)}">${I.more}</button></div>
+      ${m.voci.length?`<div class="meal-m num"><span>P <b>${fmt(t.PROTEINE,1)}</b></span><span>L <b>${fmt(t.LIPIDI,1)}</b></span><span>G <b>${fmt(t.GLUCIDI,1)}</b></span><span>F <b>${fmt(t.FIBRA,1)}</b></span></div>`:""}
+      ${m.voci.map((x,vi)=>{const f=food(x.n);return `<button class="item" data-m="${mi}" data-v="${vi}"><span class="nm">${esc(x.n)}${f?"":' <span class="tag">non in archivio</span>'}</span><span class="g num">${fmt(x.g)}g</span><span class="kc num">${fmt(val(f,"KCAL",x.g))}kcal</span></button>`}).join("")}
+      <button class="addbtn" data-add="${mi}">${I.plus}Aggiungi alimento</button></section>`}).join("")+`<button class="btn" id="saddmeal">Aggiungi pasto</button>`;
+  $("#view").innerHTML=W(days+`<div class="daygrid"><aside class="dayside">${summ}</aside><div class="meals">${right}</div></div>`);
+  const v=$("#view");
+  $("#bk").onclick=()=>history.back();$("#sm").onclick=()=>stMenu(s);$("#snm").onclick=()=>stMeta(s);
+  v.querySelector("#sdays").onclick=e=>{const b=e.target.closest("[data-d]");if(b){stDay=+b.dataset.d;render()}};
+  v.querySelector("#sadd").onclick=()=>stAddDay(s);
+  v.querySelectorAll("[data-larn]").forEach(b=>b.onclick=()=>stLarnSheet(s,media));
+  if(media)return;
+  v.querySelector("#saddmeal").onclick=()=>stAddMeal(s,d);
+  v.querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>pickFood(f=>askGrams(f,null,g=>{d.pasti[+b.dataset.add].voci.push({n:f.n,g});saveStima(s);rerender()})));
+  v.querySelectorAll(".item").forEach(b=>b.onclick=()=>{const m=d.pasti[+b.dataset.m],i=+b.dataset.v,x=m.voci[i],f=food(x.n);
+    if(!f)return confirmSheet("Alimento non in archivio",`"${x.n}" non è nell'archivio alimenti. Vuoi rimuoverlo?`,"Rimuovi",()=>{m.voci.splice(i,1);saveStima(s);rerender()});
+    askGrams(f,x.g,g=>{x.g=g;saveStima(s);rerender()},()=>{m.voci.splice(i,1);saveStima(s);rerender()})});
+  v.querySelectorAll("[data-mm]").forEach(b=>b.onclick=()=>{const mi=+b.dataset.mm,m=d.pasti[mi];
+    sheet(`<h2>${esc(m.nome)}</h2><div class="menu"><button data-a="ren">Rinomina pasto</button><button data-a="clr" ${m.voci.length?"":"disabled"}>Svuota pasto</button><button data-a="del" class="danger">Elimina pasto</button></div>`,sh=>{
+      sh.onclick=e=>{const a=e.target.closest("[data-a]")?.dataset.a;if(!a)return;closeSheet();
+        if(a==="ren")askText("Nome del pasto",m.nome,"",n=>{if(n){m.nome=n;saveStima(s);rerender()}});
+        if(a==="clr"){m.voci=[];saveStima(s);rerender()}
+        if(a==="del"){d.pasti.splice(mi,1);saveStima(s);rerender()}}})});
+}
+function stLarnChip(s,T,days){
+  if(!s.sesso||!s.eta)return `<button class="larnchip" data-larn><b>Confronto LARN</b><span>Inserisci sesso ed età (facoltativi) per il confronto</span></button>`;
+  const pp=stPseudo(s),g=larnGroup(pp,s.larnCond);if(!g||g.err)return "";
+  const R=larnRows(pp,T,g,larnCov(days)),low=R.filter(r=>r.st==="low").length,hi=R.filter(r=>r.st==="high").length;
+  return `<button class="larnchip" data-larn><b>Confronto LARN</b><span>${low||hi?[low?`${low} sotto il riferimento`:"",hi?`${hi} sopra i limiti`:""].filter(Boolean).join(" · "):"Tutti i riferimenti raggiunti"}</span></button>`}
+function stLarnSheet(s,media0){
+  if(!s.sesso||!s.eta)return stMeta(s);
+  let sc=media0?"media":"giorno";
+  sheet(`<h2>Confronto con i LARN</h2><div class="scroll" id="lb"></div><div class="actions" style="margin-top:10px"><button class="btn primary" data-close>Chiudi</button></div>`,sh=>{
+   const draw=()=>{const box=sh.querySelector("#lb"),pp=stPseudo(s),g=larnGroup(pp,s.larnCond);if(!g||g.err){box.innerHTML=`<p class="note">${esc(g&&g.err||"Dati non sufficienti")}.</p>`;return}
+     const multi=s.giorni.length>1;if(!multi)sc="giorno";
+     const cur=s.giorni[Math.min(stDay,s.giorni.length-1)],days=sc==="giorno"?[cur]:stFull(s);
+     const R=larnRows(pp,larnAvg(days),g,larnCov(days)),fr=v=>Array.isArray(v)?`${fmt(v[0])}–${fmt(v[1])}`:fmtN(v);
+     const bar=r=>{if(r.dir!=="min")return"";const pc=r.ref>0?r.x/r.ref*100:0;return `<div class="lbar"><i class="${r.st}" style="width:${Math.min(100,pc)}%"></i></div><span class="lpc ${r.st}">${Math.round(pc)}%</span>`};
+     const lab2={low:"sotto",near:"vicino",ok:"ok",high:"oltre",nd:"dati incompleti"};
+     box.innerHTML=`${multi?`<div class="seg" id="lsc">${[["giorno",esc(cur.titolo)],["media","Media dei giorni"]].map(([k,l])=>`<button data-sc="${k}" aria-pressed="${sc===k}">${l}</button>`).join("")}</div>`:""}
+      ${s.sesso!=="M"?`<div class="field"><label for="lcond">Condizione</label><select id="lcond">${[["","—"],["post","Post-menopausa"],["grav","Gravidanza"],["allatt","Allattamento"]].map(([v,l])=>`<option value="${v}"${(s.larnCond||"")===v?" selected":""}>${l}</option>`).join("")}</select></div>`:""}
+      <p class="note" style="margin-top:0">Riferimenti per ${esc(LARN_GLABEL[g])} · ${esc(LARN_SRC)} · ${days.length} ${days.length===1?"giorno":"giorni"}${sc==="media"?" (media)":""}</p>
+      ${["Energia e macronutrienti","Minerali","Vitamine"].map(sz=>`<div class="label" style="margin-top:10px">${sz}</div><div class="ltab">${R.filter(r=>r.sez===sz).map(r=>`<div class="lrow">
+        <div class="ln"><b>${esc(r.l)}</b><small>${esc(r.tipo)} ${r.dir==="max"?"≤ ":r.dir==="range"?"":"≥ "}${fr(r.ref)}${r.u}${r.nota?" · "+esc(r.nota):""}</small></div>
+        <div class="lv num">${fmtN(r.x)}${r.u}${r.dir!=="min"?`<span class="lpc ${r.st}" style="display:block">${lab2[r.st]}</span>`:""}</div><div class="lm">${bar(r)}</div></div>`).join("")}</div>`).join("")}
+      <p class="note">In grigio i nutrienti per cui le tabelle non hanno il valore di molti alimenti inseriti (spesso prodotti commerciali e alimenti personali): il totale reale è più alto di quello mostrato.</p>
+      <p class="note">PRI e AI sono valori per la popolazione: un'assunzione sotto il riferimento in un singolo giorno non indica di per sé una carenza; conta la media su più giorni.</p>`;
+     const ls=box.querySelector("#lsc");if(ls)ls.onclick=e=>{const b=e.target.closest("[data-sc]");if(!b)return;sc=b.dataset.sc;draw()};
+     const lc=box.querySelector("#lcond");if(lc)lc.onchange=()=>{if(lc.value)s.larnCond=lc.value;else delete s.larnCond;saveStima(s);draw();rerender()}};
+   draw()},true);
+}
+function stMeta(s){
+  sheet(`<h2>Dati della stima</h2><form id="smf" class="scroll">
+   <div class="field"><label for="snn">Etichetta</label><input id="snn" value="${esc(s.nome)}" autocomplete="off" placeholder="Es. Richiamo 24h, ambulatorio martedì"></div>
+   <div class="grid3"><div class="field"><label for="sss">Sesso</label><select id="sss">${[["","—"],["F","F"],["M","M"]].map(([v,l])=>`<option value="${v}"${s.sesso===v?" selected":""}>${l}</option>`).join("")}</select></div>
+   <div class="field"><label for="see">Età (anni)</label><input id="see" inputmode="numeric" value="${s.eta??""}"></div>
+   <div class="field"><label for="spp">Peso (kg)</label><input id="spp" inputmode="decimal" value="${s.peso??""}"></div></div>
+   <p class="note" style="margin-top:-4px">Facoltativi: servono solo per proteine in g/kg e confronto LARN. Non vengono creati pazienti.</p>
+   <div class="field"><label for="snt">Note</label><textarea id="snt">${esc(s.note||"")}</textarea></div>
+   <div class="actions"><button type="button" class="btn" data-close>Annulla</button><button class="btn primary">Salva</button></div></form>`,sh=>{
+   sh.querySelector("#smf").onsubmit=e=>{e.preventDefault();const eta=num(sh.querySelector("#see").value);
+     if(eta!=null&&(eta<1||eta>110))return toast("Età non valida");
+     Object.assign(s,{nome:sh.querySelector("#snn").value.trim()||s.nome,sesso:sh.querySelector("#sss").value,eta:eta?Math.round(eta):null,peso:num(sh.querySelector("#spp").value)||null,note:sh.querySelector("#snt").value});
+     if(s.sesso==="M")delete s.larnCond;saveStima(s);closeSheet();rerender()}});
+}
+function stAddDay(s){
+  const cur=s.giorni[Math.min(stDay,s.giorni.length-1)],n=s.giorni.length+1;
+  sheet(`<h2>Aggiungi giorno</h2><div class="menu"><button data-a="e">Giorno vuoto<small>${esc(STIMA_PASTI.join(", "))}</small></button>${dayVoci(cur).length?`<button data-a="c">Copia da ${esc(cur.titolo)}<small>Stessi alimenti, da modificare</small></button>`:""}</div>`,sh=>{
+    sh.onclick=e=>{const a=e.target.closest("[data-a]")?.dataset.a;if(!a)return;closeSheet();
+      s.giorni.push(a==="c"?{...clean(cur),titolo:"Giorno "+n}:stEmptyDay(n));stDay=s.giorni.length-1;saveStima(s);render()}});
+}
+function stAddMeal(s,d){
+  const free=[...new Set(STIMA_PASTI.concat(MEAL_NAMES,["Fuori pasto"]))].filter(m=>!d.pasti.some(x=>x.nome===m));
+  sheet(`<h2>Aggiungi pasto</h2><div class="menu">${free.map(m=>`<button data-m="${esc(m)}">${esc(m)}</button>`).join("")}</div>
+   <form id="smn" style="margin-top:12px"><div class="field"><label for="smx">Altro nome</label><input id="smx" placeholder="Es. Dopo cena"></div><button class="btn primary" style="width:100%">Aggiungi</button></form>`,sh=>{
+   const go=n=>{if(!n)return;d.pasti.push({nome:n,voci:[]});saveStima(s);closeSheet();rerender()};
+   sh.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>go(b.dataset.m));
+   sh.querySelector("#smn").onsubmit=e=>{e.preventDefault();go(sh.querySelector("#smx").value.trim())}});
+}
+function stMenu(s){
+  const media=s.giorni.length>1&&stDay===s.giorni.length,cur=media?null:s.giorni[stDay];
+  sheet(`<h2>${esc(s.nome)}</h2><div class="menu">
+    <button data-a="meta">Dati della stima<small>Etichetta, sesso, età e peso (facoltativi), note</small></button>
+    <button data-a="day">Aggiungi giorno<small>Per un diario di più giorni: la media viene calcolata in automatico</small></button>
+    ${cur?`<button data-a="rend">Rinomina ${esc(cur.titolo)}<small>Es. "Lunedì", "Giorno festivo"</small></button>`:""}
+    ${cur&&s.giorni.length>1?`<button data-a="deld" class="danger">Elimina ${esc(cur.titolo)}</button>`:""}
+    <button data-a="dup">Duplica stima</button>
+    <button data-a="del" class="danger">Elimina stima</button></div>`,sh=>{
+   sh.onclick=e=>{const a=e.target.closest("[data-a]")?.dataset.a;if(!a)return;closeSheet();
+     if(a==="meta")stMeta(s);if(a==="day")stAddDay(s);
+     if(a==="rend")askText("Nome del giorno",cur.titolo,"",n=>{if(n){cur.titolo=n;saveStima(s);render()}});
+     if(a==="deld")confirmSheet(`Eliminare ${cur.titolo}?`,"Gli alimenti di questo giorno vengono rimossi dalla stima.","Elimina",()=>{s.giorni.splice(stDay,1);stDay=Math.max(0,stDay-1);saveStima(s);render()});
+     if(a==="dup"){const c={...clean(s),id:uid(),nome:s.nome+" (copia)",data:today()};saveStima(c);state.stima=c;stDay=0;render();toast("Stima duplicata")}
+     if(a==="del")confirmSheet(`Eliminare ${s.nome}?`,"La stima viene rimossa da questo dispositivo.","Elimina",()=>{state.kv.stime=stList().filter(x=>x!==s);saveKV("stime");history.back();toast("Stima eliminata")})}});
+}
+
 /* ═════════ alternative standard ═════════ */
 /* Gruppi di alimenti intercambiabili (es. "Pane e sostituti"): quando uno di questi alimenti entra in un pasto,
    le alternative del gruppo vengono aggiunte da sole con le grammature equivalenti. */
@@ -1824,7 +2024,7 @@ function viewDati(){
    <div class="actions"><button class="btn" id="bk">Crea backup</button><button class="btn" id="rs">Ripristina</button></div></div>
   <div class="card"><h3>Archivio</h3><p class="num">${state.pazienti.length} pazienti · ${FOODS.length} alimenti (${DB.foods.filter(f=>f.o==="s").length} CREA/INRAN, ${DB.foods.filter(f=>f.o==="p").length} personali, ${FOODS.filter(f=>f.o==="r").length} ricette${nU?`, ${nU} aggiunti su questo dispositivo`:""}) · ${state.kv.presets.length} preset · ${state.kv.modelli.length} giornate tipo · ${state.kv.pasti.length} pasti salvati</p>
    <p style="margin:0">I dati restano solo su questo dispositivo${state.persist?"":". <b class=\"over\">Archivio non disponibile in questa sessione.</b>"}</p></div>
-  <div class="note">NutriDesk 0.11.1 · valori nutrizionali per 100g di parte edibile</div>`);
+  <div class="note">NutriDesk 0.12 · valori nutrizionali per 100g di parte edibile</div>`);
   $("#view").querySelectorAll("[data-tm]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),mode:b.dataset.tm});rerender()});
   $("#view").querySelectorAll("[data-tc]").forEach(b=>b.onclick=()=>{setTheme({...getTheme(),color:b.dataset.tc});rerender()});
   const sb=$("#syset");if(sb)sb.onclick=syncSetup;const sn=$("#synow");if(sn)sn.onclick=()=>{toast("Sincronizzazione…");syncNow().then(()=>{rerender();toast(SY.status==="err"?"Sincronizzazione non riuscita: "+SY.err:"Sincronizzato")})};const so=$("#syoff");if(so)so.onclick=syncDisconnect;
@@ -2059,7 +2259,7 @@ function restore(j){
   confirmSheet("Ripristinare il backup?",`Il file contiene ${j.pazienti.length} pazienti e ${j.alimenti.length} alimenti${j.kv?", oltre a preset, giornate tipo, pasti e porzioni":""}. Gli elementi già presenti con lo stesso identificativo vengono sostituiti; gli altri restano.`,"Ripristina",async()=>{
     for(const f of j.alimenti)await saveFood(f);
     for(const p of j.pazienti){migrate(p);const i=state.pazienti.findIndex(x=>x.id===p.id);if(i>=0)state.pazienti[i]=p;await savePaz(p)}
-    if(j.kv){for(const k of ["presets","modelli","pasti"]){const cur=state.kv[k]||[];(j.kv[k]||[]).forEach(x=>{const i=cur.findIndex(y=>y.id===x.id);if(i>=0)cur[i]=x;else cur.push(x)});state.kv[k]=cur;await saveKV(k)}
+    if(j.kv){for(const k of ["presets","modelli","pasti","stime"]){const cur=state.kv[k]||[];(j.kv[k]||[]).forEach(x=>{const i=cur.findIndex(y=>y.id===x.id);if(i>=0)cur[i]=x;else cur.push(x)});state.kv[k]=cur;await saveKV(k)}
       Object.entries(j.kv.porzioni||{}).forEach(([k,L])=>{const cur=state.kv.porzioni[k]=state.kv.porzioni[k]||[];L.forEach(x=>{if(!cur.some(y=>y.g===x.g&&y.l===x.l))cur.push(x)})});await saveKV("porzioni")}
     render();toast("Backup ripristinato")});
 }
@@ -2201,7 +2401,7 @@ function confirmSheet(t,msg,ok,cb){sheet(`<h2>${esc(t)}</h2><p style="color:var(
 function askText(title,def,ph,cb){sheet(`<h2>${esc(title)}</h2><form id="tf"><div class="field"><input id="tv" value="${esc(def)}" placeholder="${esc(ph)}" aria-label="${esc(title)}"></div><div class="actions"><button type="button" class="btn" data-close>Annulla</button><button class="btn primary">Conferma</button></div></form>`,s=>{
   const i=s.querySelector("#tv");if(wide()){i.focus();i.select()}s.querySelector("#tf").onsubmit=e=>{e.preventDefault();const v=i.value.trim();closeSheet();cb(v)}})}
 /* chiude il foglio in primo piano (Esc, tasto indietro di Android, ×, trascinamento della maniglia) */
-function closeTopSheet(){const all=document.querySelectorAll(".scrim");if(!all.length)return false;all[all.length-1].remove();
+function closeTopSheet(){const dp=document.querySelector(".dpk");if(dp){dp.remove();return true}const all=document.querySelectorAll(".scrim");if(!all.length)return false;all[all.length-1].remove();
   if(!document.querySelector(".scrim")&&SY.pendingRender){SY.pendingRender=false;setTimeout(rerender,0)}return true}
 window.addEventListener("keydown",e=>{if(e.key==="Escape")closeTopSheet()});
 document.addEventListener("click",e=>{if(e.target.closest(".sheetx")){e.stopPropagation();closeTopSheet()}},true);
@@ -2213,8 +2413,8 @@ document.addEventListener("click",e=>{if(e.target.closest(".sheetx")){e.stopProp
     if(dy>90||(dy>30&&v>.5)){sh.style.transition="transform .15s ease-in";sh.style.transform="translateY(100%)";setTimeout(()=>{const sc=sh.closest(".scrim");if(sc){sc.remove();if(!document.querySelector(".scrim")&&SY.pendingRender){SY.pendingRender=false;setTimeout(rerender,0)}}},140)}
     else{sh.style.transition="transform .15s ease-out";sh.style.transform=""}};
   document.addEventListener("pointerup",end);document.addEventListener("pointercancel",end)})();
-window.addEventListener("popstate",()=>{if(document.querySelector(".scrim")){closeSheet();if(state.paz)history.pushState({paz:1},"");return}if(state.paz){const old=state.paz;state.paz=null;releasePaz(old);render()}else render()});
-window.addEventListener("resize",()=>{$("#tabs").hidden=!!state.paz&&!wide()});
+window.addEventListener("popstate",()=>{if(document.querySelector(".scrim")){closeSheet();if(state.paz||state.stima)history.pushState({paz:1},"");return}if(state.paz){const old=state.paz;state.paz=null;releasePaz(old);render()}else{state.stima=null;render()}});
+window.addEventListener("resize",()=>{$("#tabs").hidden=!!(state.paz||state.stima)&&!wide()});
 WIDE_MQ.addEventListener&&WIDE_MQ.addEventListener("change",()=>rerender());
 
 /* ═════════ apertura diretta dei file ═════════ */
@@ -2228,7 +2428,7 @@ addEventListener("drop",e=>{if(!e.dataTransfer||!e.dataTransfer.files.length)ret
 async function nativeOpen(url){try{const r=await window.Capacitor.Plugins.Filesystem.readFile({path:url});const bin=Uint8Array.from(atob(r.data),c=>c.charCodeAt(0));
   const name=decodeURIComponent(url).split(/[\/:]/).pop()||"file";await handleFile(new File([bin],name))}catch(e){toast("Impossibile aprire il file: "+(e&&e.message||e))}}
 (function(){const C=window.Capacitor;if(!(C&&C.isNativePlatform&&C.isNativePlatform()&&C.Plugins.App))return;
-  C.Plugins.App.addListener("backButton",()=>{if(closeTopSheet())return;if(state.paz){history.back();return}
+  C.Plugins.App.addListener("backButton",()=>{if(closeTopSheet())return;if(state.paz||state.stima){history.back();return}
     if(state.tab!=="pazienti"){state.tab="pazienti";render();return}C.Plugins.App.minimizeApp?C.Plugins.App.minimizeApp():C.Plugins.App.exitApp()});
   C.Plugins.App.addListener("appUrlOpen",e=>{if(e&&e.url)nativeOpen(e.url)});
   C.Plugins.App.getLaunchUrl().then(r=>{if(r&&r.url)setTimeout(()=>nativeOpen(r.url),800)}).catch(()=>{})})();
